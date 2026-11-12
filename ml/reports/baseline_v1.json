@@ -1,0 +1,265 @@
+{
+  "model": "baseline",
+  "version": "v1-29f9d2c5",
+  "config": {
+    "n_features": 1048576,
+    "max_tokens": 600,
+    "min_df": 3,
+    "C": 4.0,
+    "max_iter": 300
+  },
+  "data_manifest_sha256": "6df1667be3003fda9c23f83c30e20c9ccc3069ce053bf7f282dcb69ea91f9215",
+  "rows": {
+    "train": 65629,
+    "val": 9195,
+    "calib": 8530,
+    "test": 8830
+  },
+  "metrics": {
+    "val": {
+      "raw": {
+        "n": 9195,
+        "unreliable_share": 0.4351,
+        "macro_f1": 0.8749,
+        "roc_auc": 0.9557,
+        "pr_auc": 0.9456,
+        "brier": 0.085,
+        "ece": 0.0338
+      },
+      "calibrated": {
+        "n": 9195,
+        "unreliable_share": 0.4351,
+        "macro_f1": 0.8755,
+        "roc_auc": 0.9554,
+        "pr_auc": 0.9409,
+        "brier": 0.0842,
+        "ece": 0.0163
+      }
+    },
+    "calib": {
+      "raw": {
+        "n": 8530,
+        "unreliable_share": 0.4327,
+        "macro_f1": 0.8922,
+        "roc_auc": 0.9614,
+        "pr_auc": 0.9531,
+        "brier": 0.0779,
+        "ece": 0.0362
+      },
+      "calibrated": {
+        "n": 8530,
+        "unreliable_share": 0.4327,
+        "macro_f1": 0.8933,
+        "roc_auc": 0.9621,
+        "pr_auc": 0.9498,
+        "brier": 0.0753,
+        "ece": 0.0025
+      }
+    },
+    "test": {
+      "raw": {
+        "n": 8830,
+        "unreliable_share": 0.4341,
+        "macro_f1": 0.873,
+        "roc_auc": 0.9524,
+        "pr_auc": 0.9429,
+        "brier": 0.0874,
+        "ece": 0.026
+      },
+      "calibrated": {
+        "n": 8830,
+        "unreliable_share": 0.4341,
+        "macro_f1": 0.8737,
+        "roc_auc": 0.9519,
+        "pr_auc": 0.9379,
+        "brier": 0.0873,
+        "ece": 0.0166
+      }
+    },
+    "test_by_dataset": {
+      "fakenewsnet": {
+        "n": 1524,
+        "unreliable_share": 0.3222,
+        "macro_f1": 0.7181,
+        "roc_auc": 0.8118,
+        "pr_auc": 0.6813,
+        "brier": 0.1618,
+        "ece": 0.0531
+      },
+      "liar": {
+        "n": 972,
+        "unreliable_share": 0.501,
+        "macro_f1": 0.5857,
+        "roc_auc": 0.624,
+        "pr_auc": 0.6092,
+        "brier": 0.2658,
+        "ece": 0.1446
+      },
+      "welfake": {
+        "n": 6334,
+        "unreliable_share": 0.4507,
+        "macro_f1": 0.9454,
+        "roc_auc": 0.9866,
+        "pr_auc": 0.9813,
+        "brier": 0.042,
+        "ece": 0.0192
+      }
+    },
+    "test_by_length": {
+      "article": {
+        "n": 5291,
+        "unreliable_share": 0.4544,
+        "macro_f1": 0.9455,
+        "roc_auc": 0.9863,
+        "pr_auc": 0.981,
+        "brier": 0.0429,
+        "ece": 0.0222
+      },
+      "headline": {
+        "n": 2742,
+        "unreliable_share": 0.4362,
+        "macro_f1": 0.7027,
+        "roc_auc": 0.7901,
+        "pr_auc": 0.7412,
+        "brier": 0.1918,
+        "ece": 0.0822
+      },
+      "short": {
+        "n": 797,
+        "unreliable_share": 0.2923,
+        "macro_f1": 0.9638,
+        "roc_auc": 0.9956,
+        "pr_auc": 0.9887,
+        "brier": 0.0229,
+        "ece": 0.0261
+      }
+    }
+  },
+  "thresholds": {
+    "t_low": 0.35,
+    "t_high": 0.65,
+    "met_targets": true,
+    "precision_target": 0.9,
+    "npv_target": 0.9
+  },
+  "bands_on_test": {
+    "reliable": {
+      "share": 0.5299,
+      "unreliable_rate": 0.0898
+    },
+    "potentially_misleading": {
+      "share": 0.1042,
+      "unreliable_rate": 0.513
+    },
+    "high_risk": {
+      "share": 0.3659,
+      "unreliable_rate": 0.9102
+    }
+  },
+  "top_features": {
+    "unreliable": [
+      "via",
+      "read more",
+      "video",
+      "the us",
+      "october",
+      "2016",
+      "<bucket 1043942>",
+      "breaking",
+      "<bucket 396043>",
+      "november 2016",
+      "november",
+      "hillary",
+      "read",
+      "via breitbart",
+      "on october",
+      "wow",
+      "un",
+      "react",
+      "swipe left",
+      "us",
+      "\u043d\u0430",
+      "<bucket 160149>",
+      "sputnik",
+      "caitlyn",
+      "<bucket 633143>",
+      "anti",
+      "<bucket 282532>",
+      "26 2016",
+      "27 2016",
+      "rt",
+      "<bucket 599892>",
+      "debunked",
+      "source",
+      "for entire",
+      "rumor",
+      "obama",
+      "2016 by",
+      "<bucket 704098>",
+      "below",
+      "<bucket 879778>",
+      "\u0447\u0442\u043e",
+      "illegals",
+      "begging",
+      "11 16",
+      "<bucket 535980>",
+      "<bucket 721668>",
+      "<bucket 125041>",
+      "cops",
+      "mosul",
+      "wisconsin"
+    ],
+    "reliable": [
+      "breitbart",
+      "president donald",
+      "lobster",
+      "said on",
+      "york times",
+      "follow",
+      "pic twitter",
+      "https",
+      "music video",
+      "pic",
+      "on twitter",
+      "<bucket 374404>",
+      "season",
+      "<bucket 1002616>",
+      "on friday",
+      "<bucket 627274>",
+      "said",
+      "on tuesday",
+      "on thursday",
+      "on monday",
+      "follow him",
+      "trailer",
+      "on wednesday",
+      "<bucket 717291>",
+      "mr",
+      "the arrangement",
+      "the new",
+      "said in",
+      "twitter",
+      "ms",
+      "for breitbart",
+      "<bucket 296882>",
+      "breitbart the",
+      "he said",
+      "or email",
+      "<bucket 1029517>",
+      "<bucket 132919>",
+      "netflix",
+      "in 2016",
+      "<bucket 832669>",
+      "beauty",
+      "thursday",
+      "shirtless",
+      "breitbart texas",
+      "pam key",
+      "follow pam",
+      "<bucket 658266>",
+      "key on",
+      "friday",
+      "2018"
+    ]
+  }
+}
