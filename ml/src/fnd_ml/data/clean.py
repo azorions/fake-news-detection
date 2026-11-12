@@ -13,6 +13,50 @@ SHORT_MAX_WORDS = 150
 MIN_WORDS = 3
 
 _WORD_RE = re.compile(r"\w+")
+_LETTER_RE = re.compile(r"[^\W\d_]")
+_LATIN_LETTER_RE = re.compile(r"[A-Za-zÀ-ɏ]")
+_ENGLISH_STOPWORDS = frozenset(
+    [
+        "the",
+        "of",
+        "and",
+        "to",
+        "in",
+        "is",
+        "that",
+        "for",
+        "on",
+        "with",
+        "as",
+        "was",
+        "by",
+        "at",
+        "it",
+        "be",
+        "this",
+        "are",
+        "from",
+    ]
+)
+_LANGUAGE_PREFIX_CHARS = 2000
+_MIN_WORDS_FOR_STOPWORD_CHECK = 30
+
+
+def looks_english(text: str) -> bool:
+    """Cheap English check for training data (the API uses a real language detector).
+
+    Rejects text that is mostly in a non-Latin script, and longer text in which common English
+    function words are rare. Short Latin-script text is accepted, because a headline has too few
+    words to judge.
+    """
+    prefix = text[:_LANGUAGE_PREFIX_CHARS]
+    letters = len(_LETTER_RE.findall(prefix))
+    if letters and len(_LATIN_LETTER_RE.findall(prefix)) / letters < 0.8:
+        return False
+    words = [word.lower() for word in _WORD_RE.findall(prefix)]
+    if len(words) < _MIN_WORDS_FOR_STOPWORD_CHECK:
+        return True
+    return sum(word in _ENGLISH_STOPWORDS for word in words) / len(words) >= 0.10
 
 
 def length_bucket(n_words: int) -> str:
@@ -29,7 +73,7 @@ def clean_frame(frame: pd.DataFrame) -> pd.DataFrame:
     ``model_text`` (what the classifiers read: scrubbed title + scrubbed body), ``n_words`` (words in
     the scrubbed body), ``length_bucket`` and ``text_hash`` (of the scrubbed body). ``title`` and
     ``text`` are normalized but keep their artifacts. Rows with fewer than three words of scrubbed body
-    are dropped.
+    are dropped, and so are rows that do not look English.
     """
     out = frame.copy()
     out["text"] = out["text"].map(normalize_text)
@@ -43,4 +87,5 @@ def clean_frame(frame: pd.DataFrame) -> pd.DataFrame:
     out["n_words"] = bodies.map(lambda body: len(_WORD_RE.findall(body))).astype("int64")
     out["length_bucket"] = out["n_words"].map(length_bucket)
     out["text_hash"] = bodies.map(text_hash)
-    return out[out["n_words"] >= MIN_WORDS].reset_index(drop=True)
+    keep = (out["n_words"] >= MIN_WORDS) & out["text"].map(looks_english)
+    return out[keep].reset_index(drop=True)

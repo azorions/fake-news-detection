@@ -24,12 +24,15 @@ def _frame(rows: list[dict[str, object]]) -> pd.DataFrame:
 
 
 def test_clean_adds_model_text_word_counts_buckets_and_hashes() -> None:
-    article = " ".join(["word"] * 200)
+    article = " ".join(["the senate voted on the budget and the vote was close"] * 20)
     frame = _frame(
         [
             {"title": "Budget passes", "text": "WASHINGTON (Reuters) - " + article, "label": 0},
             {"text": "Ten words in this headline about the senate vote today", "label": 1},
-            {"text": "Short   text “quoted” with fifty " + " ".join(["w"] * 50), "label": 1},
+            {
+                "text": "Short   text “quoted” here " + " ".join(["the vote was close and"] * 10),
+                "label": 1,
+            },
         ]
     )
 
@@ -173,3 +176,24 @@ def test_build_refuses_an_inverted_wire_label_map(
     monkeypatch.setattr(build.loaders, "load", flipped)
     with pytest.raises(ValueError, match="welfake"):
         build_corpus(tiny_raw, tmp_path / "processed")
+
+
+# ---------------------------------------------------------------- language filter
+
+
+def test_rows_that_are_not_english_are_dropped() -> None:
+    spanish = (
+        "El gobierno anunció hoy que el presupuesto anual fue aprobado por la comisión después de "
+        "una larga revisión de los datos oficiales del ministerio de finanzas y del banco central "
+        "durante la sesión de la mañana del martes pasado según un comunicado publicado"
+    )
+    russian = "Правительство объявило сегодня что годовой бюджет был одобрен"
+    headline = "Senate passes budget bill"
+    frame = _frame(
+        [
+            {"text": spanish, "label": 1},
+            {"text": russian, "label": 1},
+            {"text": headline, "label": 0},
+        ]
+    )
+    assert clean_frame(frame)["text"].tolist() == [headline]
