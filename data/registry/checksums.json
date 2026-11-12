@@ -1,0 +1,19 @@
+{
+  "fakenewsnet": {
+    "gossipcop_fake.csv": "c6932bffadb1230bc61c66bb2ca298f4ef28ce849d268313ad2eed41d18d4c99",
+    "gossipcop_real.csv": "d721e9a8b7e660da05c089691743c33fecb25367074e936b5fab3d85cdcbe79f",
+    "politifact_fake.csv": "abe7fe7aad801b1e2ab5fc963cbd0881d9670190262ae3df85e91c3380bd004c",
+    "politifact_real.csv": "2500f86a7addca0f59fe8cf089c0f802d3eca6980f53538992b3b0e9687dbae0"
+  },
+  "isot": {
+    "News_dataset.zip": "1846d4ca7abfedb53a4f7c233489d23a0e6c8bb79e7f56fb8345c4faceae5268"
+  },
+  "liar": {
+    "test2.tsv": "a374044e6f73700f749a1bdaf71174356e437c7e6f7ecd4feb52d2fa82820442",
+    "train2.tsv": "63adafa9360f43788fb16499871ff7665143c554fc8a3cce1af846233ce53f07",
+    "val2.tsv": "45fac5748e2da08898a4fda0cb02e4c107990a0111b4a6c3aed1956b38a309a2"
+  },
+  "welfake": {
+    "WELFake_Dataset.csv": "665331424230fc452e9482c3547a6a199a2c29745ade8d236950d1d105223773"
+  }
+}

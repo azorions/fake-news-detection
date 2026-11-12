@@ -1,0 +1,57 @@
+# Where each dataset comes from and under which terms.
+# The sha256 of every file is recorded in checksums.json on first download and verified afterwards.
+# A dataset that needs a login can be placed by hand in data/raw/<name>/ under the listed filename.
+
+datasets:
+  welfake:
+    license: CC BY 4.0
+    homepage: https://zenodo.org/records/4561253
+    files:
+      - url: https://zenodo.org/records/4561253/files/WELFake_Dataset.csv?download=1
+        filename: WELFake_Dataset.csv
+    notes: >
+      About 72k articles merged from four corpora (Kaggle, McIntire, Reuters, BuzzFeed Political).
+      Overlaps ISOT. No publisher field. The label meaning is verified against the data by the
+      loader's sanity check instead of trusted from the description.
+
+  isot:
+    license: Free for research use with attribution (see homepage)
+    homepage: https://onlineacademiccommunity.uvic.ca/isot/2022/11/27/fake-news-detection-datasets/
+    files:
+      - url: https://onlineacademiccommunity.uvic.ca/isot/wp-content/uploads/sites/7295/2023/03/News-_dataset.zip
+        filename: News_dataset.zip
+    notes: >
+      About 45k articles, 2016-2017. Every "true" article is from Reuters, so publisher artifacts
+      must be scrubbed and the dataset must not dominate training.
+
+  fakenewsnet:
+    license: See repository (index files only; article bodies are not redistributed)
+    homepage: https://github.com/KaiDMML/FakeNewsNet
+    files:
+      - url: https://raw.githubusercontent.com/KaiDMML/FakeNewsNet/master/dataset/politifact_fake.csv
+        filename: politifact_fake.csv
+      - url: https://raw.githubusercontent.com/KaiDMML/FakeNewsNet/master/dataset/politifact_real.csv
+        filename: politifact_real.csv
+      - url: https://raw.githubusercontent.com/KaiDMML/FakeNewsNet/master/dataset/gossipcop_fake.csv
+        filename: gossipcop_fake.csv
+      - url: https://raw.githubusercontent.com/KaiDMML/FakeNewsNet/master/dataset/gossipcop_real.csv
+        filename: gossipcop_real.csv
+    notes: >
+      Headlines with source URLs, labelled by PolitiFact and GossipCop. Used as headline-length
+      examples and for publisher-grouped splitting.
+
+  liar:
+    license: CC0 1.0 (LIAR-PLUS repository)
+    homepage: https://github.com/Tariq60/LIAR-PLUS
+    files:
+      - url: https://raw.githubusercontent.com/Tariq60/LIAR-PLUS/master/dataset/tsv/train2.tsv
+        filename: train2.tsv
+      - url: https://raw.githubusercontent.com/Tariq60/LIAR-PLUS/master/dataset/tsv/val2.tsv
+        filename: val2.tsv
+      - url: https://raw.githubusercontent.com/Tariq60/LIAR-PLUS/master/dataset/tsv/test2.tsv
+        filename: test2.tsv
+    notes: >
+      The 12.8k PolitiFact statements of LIAR (Wang, 2017), rated on six levels, 2007-2016, plus the
+      fact-checkers' justifications added by LIAR-PLUS (Alhindi et al., 2018). The original LIAR zip
+      on cs.ucsb.edu refuses scripted downloads (HTTP 403). The speaker "credit history" columns
+      include each statement's own rating, so they are never used as features.
