@@ -86,19 +86,56 @@ def normalize_text(text: str) -> str:
 
 # ---------------------------------------------------------------- artifact scrubbing
 
-_PUBLISHER_NAMES = ("Reuters", "21st Century Wire", "21WIRE", "Getty Images")
+# Every pattern below removes something that identifies where or when a text was published instead of
+# what it says. Each one was added because the leak probe (the baseline's strongest features) showed
+# the models using it as a shortcut for the label. Removing a year or an outlet name costs a little
+# content; keeping it teaches the model "written in late 2016" or "mentions Breitbart" instead of style.
+
+_MONTH = (
+    r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?"
+    r"|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?"
+)
+_DATE = rf"{_MONTH} \d{{1,2}}(?:st|nd|rd|th)?,? (?:19|20)\d{{2}}"
+_NAME = r"[A-Z][\w.'-]+(?: [A-Z][\w.'-]+){0,2}"
+_OUTLETS = (
+    r"Reuters|Breitbart(?: News| Texas| London)?|(?:The )?New York Times"
+    r"|(?i:sputnik)(?: International| news)?|RT(?: International)?|21st Century Wire|21WIRE"
+    r"|Getty Images|Daily Caller|TRUNEWS|Infowars|WND"
+)
 
 _ARTIFACT_PATTERNS: tuple[re.Pattern[str], ...] = (
     # Wire dateline at the start of the text or of a line: "WASHINGTON (Reuters) - "
-    re.compile(r"(?m)^[A-Z][A-Za-z .,'/\-]{0,60}\((?:Reuters|AP|AFP)\)\s*-\s*"),
+    re.compile(
+        r"(?m)^[A-Z][A-Za-z .,'/\-]{0,60}\((?:Reuters|AP|AFP|(?i:sputnik)|TASS|Xinhua)\)\s*-\s*"
+    ),
+    # Attribution left behind by an embedded tweet: "- Us Weekly () January 11, 2017,"
+    re.compile(rf"-\s[^()\n]{{2,50}}\(@?\w{{0,20}}\)\s?{_DATE},?"),
+    re.compile(rf"(?i:posted on) {_DATE}(?: by {_NAME})?"),
     # Image credits, up to the end of the sentence or line
     re.compile(
         r"(?i)\b(?:featured image|images?|photos?)\s+(?:via|by|credit:?|courtesy of)\b[^\n.]{0,80}\.?"
     ),
-    re.compile(r"https?://\S+|www\.\S+"),
-    re.compile(r"pic\.twitter\.com/\w+"),
+    # Source credits and "read on" teasers
+    re.compile(r"\((?:Image )?Source:[^)\n]{0,60}\)"),
+    re.compile(r"\b(?:Via|Source|Read more|For entire story|Related articles?)\s?:[^\n.]{0,40}"),
+    re.compile(r"\b(?:READ MORE|Continue this story at)\b[^\n.:]{0,40}:?"),
+    re.compile(r"(?:Next )?(?:Prev )?Swipe left/right"),
+    # Author follow and contact lines
+    re.compile(
+        rf"\bFollow (?:him|her|them|us|{_NAME}) on (?:Twitter|Facebook|Instagram)[^\n.]{{0,30}}\.?"
+    ),
+    re.compile(r"\b(?:or )?e-?mail (?:the author|him|her|them)(?: at)?\b"),
+    re.compile(r"\b(?:He|She) can be reached at\b"),
+    re.compile(r"[\w.+-]+@[\w-]+\.\s?[A-Za-z]{2,}"),
+    # Links, including the mangled remains of stripped ones ("https: .", "pic. twitter.")
+    re.compile(r"https?://\S+|www\.\S+|\bhttps?:(?:\s?\.)?"),
+    re.compile(r"\bpic\.\s?twitter\.(?:\s?com/\w+)?"),
     re.compile(r"(?<![\w@])@\w{2,15}\b"),
-    re.compile(r"\b(?:" + "|".join(re.escape(name) for name in _PUBLISHER_NAMES) + r")\b"),
+    # Dates and years: the datasets were collected in narrow time windows that differ by label
+    re.compile(_DATE),
+    re.compile(r"\b\d{1,2}/\d{1,2}/\d{2,4}\b"),
+    re.compile(r"\b(?:19|20)\d{2}\b"),
+    re.compile(rf"\b(?:{_OUTLETS})\b"),
 )
 
 

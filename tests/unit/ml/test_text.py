@@ -1,5 +1,6 @@
 import itertools
 
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
@@ -126,3 +127,55 @@ def test_text_hash_ignores_case_punctuation_and_spacing() -> None:
 def test_label_convention_is_one_for_unreliable() -> None:
     assert (UNRELIABLE, RELIABLE) == (1, 0)
     assert LABEL_NAMES == {0: "reliable", 1: "unreliable"}
+
+
+# ---------------------------------------------------------------- dataset-specific artifacts
+# Each case is a pattern that the leak probe found among the baseline's strongest features.
+
+
+@pytest.mark.parametrize(
+    ("text", "leaked"),
+    [
+        (
+            "Great news https: . pic. twitter. - Us Weekly () January 11, 2017, Jenner fought back",
+            ["https", "pic", "twitter", "Us Weekly", "2017"],
+        ),
+        (
+            "He writes books. Follow him on Twitter at @x. He can be reached at joe@mail. com",
+            ["Follow him", "Twitter", "reached", "mail"],
+        ),
+        ("That is correct. Via: cns news", ["Via", "cns"]),
+        ("the coach stated.Read more: Daily Caller", ["Read more", "Daily Caller"]),
+        ("according to the Times.For entire story: The Wrap", ["For entire story", "Wrap"]),
+        ("the plaque (Source: TMZ ) / The real kicker", ["Source", "TMZ"]),
+        ("Next Prev Swipe left/right 5 vegan alternatives", ["Swipe", "Prev"]),
+        (
+            "Posted on October 27, 2016 by Paul Joseph Watson Bureaucrat said",
+            ["Posted on", "October", "2016", "Watson"],
+        ),
+        ("TRUNEWS 11/02/16 Jim Rickards", ["11/02/16", "TRUNEWS"]),
+        ("the conservative Breitbart News stated", ["Breitbart"]),
+        ("Giving States Option - The New York Times", ["New York Times"]),
+        ("MOSCOW (Sputnik) - Putin arrived", ["Sputnik", "MOSCOW"]),
+        ("in a TV interview with RT , that he knows", ["RT"]),
+        ("It happened in 2016 and again in 1998.", ["2016", "1998"]),
+    ],
+)
+def test_dataset_specific_artifacts_are_removed(text: str, leaked: list[str]) -> None:
+    scrubbed = scrub_text(text)
+    for fragment in leaked:
+        assert fragment not in scrubbed
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Follow Trump's impact on energy and healthcare.",
+        "Water arrives via the main pipeline.",
+        "The source of the river is unknown.",
+        "They react badly to the news and read more books.",
+        "Around 2500 people and 1200 police attended.",
+    ],
+)
+def test_ordinary_sentences_survive_scrubbing(text: str) -> None:
+    assert scrub_text(text) == text
