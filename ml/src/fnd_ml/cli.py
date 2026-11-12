@@ -16,6 +16,8 @@ from fnd_ml.data.download import ChecksumMismatch, DownloadError, fetch_dataset,
 app = typer.Typer(no_args_is_help=True, add_completion=False, help=__doc__)
 data_app = typer.Typer(no_args_is_help=True, help="Download and prepare datasets.")
 app.add_typer(data_app, name="data")
+train_app = typer.Typer(no_args_is_help=True, help="Train models.")
+app.add_typer(train_app, name="train")
 
 RegistryOption = Annotated[Path, typer.Option(help="Dataset registry file.")]
 RawDirOption = Annotated[Path, typer.Option(help="Where raw dataset files are stored.")]
@@ -61,3 +63,31 @@ def data_build(
     typer.echo(json.dumps({k: manifest[k] for k in ("sources", "dedup", "rows")}, indent=2))
     shared = manifest["shared_groups_between_splits"], manifest["shared_hashes_between_splits"]
     typer.echo(f"shared groups / hashes between splits: {shared[0]} / {shared[1]}")
+
+
+@train_app.command("baseline")
+def train_baseline_command(
+    processed_dir: Annotated[Path, typer.Option(help="Output of `fnd data build`.")] = Path(
+        "data/processed"
+    ),
+    artifacts_dir: Annotated[Path, typer.Option(help="Model artifact root.")] = Path(
+        "ml/artifacts"
+    ),
+    reports_dir: Annotated[Path, typer.Option(help="Where reports are written.")] = Path(
+        "ml/reports"
+    ),
+    config: Annotated[Path, typer.Option(help="Baseline config file.")] = Path(
+        "ml/configs/baseline.yaml"
+    ),
+) -> None:
+    """Train, calibrate and register the TF-IDF + logistic regression baseline."""
+    import yaml
+
+    from fnd_ml.models.baseline import BaselineConfig
+    from fnd_ml.models.train_baseline import train_baseline
+
+    settings = BaselineConfig(**yaml.safe_load(config.read_text(encoding="utf-8")))
+    report = train_baseline(processed_dir, artifacts_dir, reports_dir, settings)
+    typer.echo(f"version {report['version']}")
+    typer.echo(json.dumps(report["metrics"]["test"], indent=2))
+    typer.echo(json.dumps(report["thresholds"]))

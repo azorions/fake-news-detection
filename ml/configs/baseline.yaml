@@ -1,0 +1,6 @@
+# Baseline: hashed TF-IDF over word 1-2-grams + logistic regression.
+n_features: 1048576   # 2**20 hash buckets
+max_tokens: 600       # only the first 600 words of each text are read
+min_df: 3             # buckets seen in fewer than 3 training documents are ignored
+C: 4.0                # inverse L2 strength of the logistic regression
+max_iter: 300
