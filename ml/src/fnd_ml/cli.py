@@ -5,6 +5,7 @@ Run from the repository root, for example ``uv run fnd data download``.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Annotated
 
@@ -45,3 +46,18 @@ def data_download(
         typer.echo(f"ok      {name}: {len(paths)} file(s), {size_mb:.1f} MB")
     if failed:
         raise typer.Exit(code=1)
+
+
+@data_app.command("build")
+def data_build(
+    raw_dir: RawDirOption = DEFAULT_RAW_DIR,
+    out_dir: Annotated[Path, typer.Option(help="Output directory.")] = Path("data/processed"),
+    seed: Annotated[int, typer.Option(help="Split seed.")] = 13,
+) -> None:
+    """Clean, deduplicate and split the raw datasets; write parquet files and a manifest."""
+    from fnd_ml.data.build import build_corpus
+
+    manifest = build_corpus(raw_dir, out_dir, seed=seed)
+    typer.echo(json.dumps({k: manifest[k] for k in ("sources", "dedup", "rows")}, indent=2))
+    shared = manifest["shared_groups_between_splits"], manifest["shared_hashes_between_splits"]
+    typer.echo(f"shared groups / hashes between splits: {shared[0]} / {shared[1]}")
