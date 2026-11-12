@@ -1,0 +1,33 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+.coverage.*
+htmlcov/
+
+# Secrets and local runtime state
+.env
+var/
+
+# Data and model artifacts (rebuilt with the `fnd` CLI)
+data/raw/
+data/interim/
+data/processed/
+data/kb/
+ml/artifacts/
+ml/runs/
+
+# Frontend
+node_modules/
+frontend/dist/
+playwright-report/
+test-results/
+
+# Tooling scratch
+.superpowers/

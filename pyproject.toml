@@ -1,0 +1,99 @@
+[project]
+name = "fake-news-detection"
+version = "0.1.0"
+description = "Fake news detection: ML pipeline, FastAPI service and web dashboard"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = ["fnd-ml", "fnd-api"]
+
+[project.optional-dependencies]
+# Training stack (PyTorch). Not needed to run the API.
+train = ["fnd-ml[train]"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=5",
+    "hypothesis>=6.100",
+    "respx>=0.21",
+    "fakeredis>=2.26",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "poethepoet>=0.30",
+    "pandas-stubs",
+    "types-pyyaml",
+]
+
+[tool.uv]
+package = false
+environments = ["sys_platform == 'win32'", "sys_platform == 'linux'"]
+
+[tool.uv.workspace]
+members = ["ml", "backend"]
+
+[tool.uv.sources]
+fnd-ml = { workspace = true }
+fnd-api = { workspace = true }
+# The Quadro P4000 (Pascal, sm_61) is only supported by the CUDA 12.6 wheels,
+# which end with the PyTorch 2.14 line. See docs/design.md, section 6.
+torch = { index = "pytorch-cu126" }
+
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
+
+# --------------------------------------------------------------------------- tooling
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["ml/src", "backend/src", "tests", "scripts"]
+extend-exclude = ["backend/alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "C4", "RUF"]
+ignore = [
+    "E501",   # line length is the formatter's job
+    "B008",   # FastAPI uses call expressions (Depends) in argument defaults
+    "RUF001", # ambiguous unicode in strings: we handle curly quotes and dashes on purpose
+    "RUF002",
+    "RUF003",
+]
+
+[tool.mypy]
+python_version = "3.12"
+disallow_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+ignore_missing_imports = true
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-q --strict-markers -m 'not slow and not network and not gpu'"
+markers = [
+    "slow: long-running tests (real artifacts, real data)",
+    "network: tests that call external services",
+    "gpu: tests that need a CUDA device",
+]
+
+[tool.coverage.run]
+source_pkgs = ["fnd_api", "fnd_ml"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+
+[tool.poe.tasks]
+lint = { sequence = ["ruff check .", "ruff format --check ."], default_item_type = "cmd" }
+types = "mypy -p fnd_ml -p fnd_api"
+test = "pytest"
+cov = "pytest --cov --cov-report=term-missing:skip-covered"
+check = ["lint", "types", "test"]
+serve = "uvicorn fnd_api.main:create_app --factory --host 127.0.0.1 --port 8000"
