@@ -159,6 +159,26 @@ def test_label_convention_is_one_for_unreliable() -> None:
         ("MOSCOW (Sputnik) - Putin arrived", ["Sputnik", "MOSCOW"]),
         ("in a TV interview with RT , that he knows", ["RT"]),
         ("It happened in 2016 and again in 1998.", ["2016", "1998"]),
+        # second leak-probe round
+        ("who is doing something.Featured Image: Screenshot", ["Featured", "Screenshot"]),
+        ("the video below.Featured image from video screenshot", ["Featured", "screenshot"]),
+        ("nice to see, too.Photo: Chip Somodevilla via Getty images.", ["Photo", "Chip", "via"]),
+        ("do it. Image: Gage Skidmore via Flickr.", ["Image", "Skidmore", "Flickr"]),
+        ("What He Deserves\n\nShare This\nAlthough the vandal", ["Share"]),
+        ("SF Source SGTreport.com Oct. Share this:", ["Share this"]),
+        ("visiting the park. Loading ...", ["Loading"]),
+        ("National Values\n\nLoading Putin Condemns Europe", ["Loading"]),
+        ("according to the report.\n{snip}\nRubio is running", ["snip"]),
+        (
+            'correct it." Lucas Nolan is a reporter for Breitbart Tech covering free speech. Next',
+            ["Lucas", "reporter", "Tech", "covering"],
+        ),
+        (
+            "Fox News Channel. You can follow him on Twitter or like his page at Facebook.",
+            ["follow", "Twitter", "like his page"],
+        ),
+        ("on Breitbart News Daily, broadcast live on SiriusXM Patriot Channel 125", ["SiriusXM", "125", "Daily"]),
+        ("SiriusXM host Alex Marlow asked about it", ["SiriusXM", "Marlow"]),
     ],
 )
 def test_dataset_specific_artifacts_are_removed(text: str, leaked: list[str]) -> None:
@@ -175,6 +195,11 @@ def test_dataset_specific_artifacts_are_removed(text: str, leaked: list[str]) ->
         "The source of the river is unknown.",
         "They react badly to the news and read more books.",
         "Around 2500 people and 1200 police attended.",
+        "The crew spent days loading more than 20,000 pounds of ice.",
+        "The event featured professors and activists. The image was striking.",
+        "Share this view or not, the photo shows the scale of the flood.",
+        "She is a writer and he is the editor of a small magazine",
+        "You can follow the money. Follow him, said the guide.",
     ],
 )
 def test_ordinary_sentences_survive_scrubbing(text: str) -> None:

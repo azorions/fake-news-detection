@@ -97,10 +97,13 @@ _MONTH = (
 )
 _DATE = rf"{_MONTH} \d{{1,2}}(?:st|nd|rd|th)?,? (?:19|20)\d{{2}}"
 _NAME = r"[A-Z][\w.'-]+(?: [A-Z][\w.'-]+){0,2}"
+_FULL_NAME = r"[A-Z][\w.'-]+(?: [A-Z][\w.'-]+){1,2}"
 _OUTLETS = (
-    r"Reuters|Breitbart(?: News| Texas| London)?|(?:The )?New York Times"
+    r"Reuters|Breitbart(?: News(?: Daily| Network| Sunday| Saturday| Tonight)?| Texas| London"
+    r"| Jerusalem| California| Tech| Sports)?|(?:The )?New York Times"
     r"|(?i:sputnik)(?: International| news)?|RT(?: International)?|21st Century Wire|21WIRE"
     r"|Getty Images|Daily Caller|TRUNEWS|Infowars|WND"
+    r"|SiriusXM(?: Patriot(?: Channel)?(?: \d+)?)?|Alex Marlow"
 )
 
 _ARTIFACT_PATTERNS: tuple[re.Pattern[str], ...] = (
@@ -115,14 +118,25 @@ _ARTIFACT_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(
         r"(?i)\b(?:featured image|images?|photos?)\s+(?:via|by|credit:?|courtesy of)\b[^\n.]{0,80}\.?"
     ),
+    re.compile(r"(?i)\bfeatured image\b[^\n.]{0,80}\.?"),
+    re.compile(r"\b(?:Photo|Image)s?(?: credit)?:[^\n.]{0,80}\.?"),
     # Source credits and "read on" teasers
     re.compile(r"\((?:Image )?Source:[^)\n]{0,60}\)"),
     re.compile(r"\b(?:Via|Source|Read more|For entire story|Related articles?)\s?:[^\n.]{0,40}"),
     re.compile(r"\b(?:READ MORE|Continue this story at)\b[^\n.:]{0,40}:?"),
     re.compile(r"(?:Next )?(?:Prev )?Swipe left/right"),
-    # Author follow and contact lines
+    # Page furniture: share buttons, lazy-load placeholders, "{snip}" elision marks
+    re.compile(r"(?im)\bshare this(?::|\s*$)"),
+    re.compile(r"(?m)\bLoading ?\.\.\.|^Loading\b(?! [a-z])"),
+    re.compile(r"(?i)[{(\[]snip[})\]]"),
+    # Author bios, follow and contact lines
     re.compile(
-        rf"\bFollow (?:him|her|them|us|{_NAME}) on (?:Twitter|Facebook|Instagram)[^\n.]{{0,30}}\.?"
+        rf"\b{_FULL_NAME} is (?:a|an|the) (?:[\w-]+ ){{0,4}}?"
+        r"(?:reporter|editor|correspondent|columnist|contributor) (?:for|at|of|with)\b[^\n.]{0,100}\.?"
+    ),
+    re.compile(
+        rf"\b(?:You can )?[Ff]ollow (?:him|her|them|us|me|{_NAME}) on "
+        r"(?:Twitter|Facebook|Instagram)[^\n.]{0,60}\.?"
     ),
     re.compile(r"\b(?:or )?e-?mail (?:the author|him|her|them)(?: at)?\b"),
     re.compile(r"\b(?:He|She) can be reached at\b"),
