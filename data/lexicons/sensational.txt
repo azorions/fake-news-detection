@@ -1,0 +1,52 @@
+# Sensational wording: one word or phrase per line, matched as whole words in any letter case.
+# Words that are common in sober reporting (for example "breaking", "crisis") are left out.
+shocking
+shocker
+bombshell
+explosive
+jaw-dropping
+mind-blowing
+mind blowing
+unbelievable
+outrageous
+horrifying
+terrifying
+chilling
+stunning
+stunner
+insane
+epic
+exposed
+destroys
+destroyed
+obliterates
+obliterated
+annihilates
+annihilated
+eviscerates
+eviscerated
+humiliates
+humiliated
+slams
+blasts
+rips into
+meltdown
+goes ballistic
+erupts
+nightmare
+catastrophic
+apocalyptic
+miracle cure
+miracle
+scandalous
+disgusting
+sickening
+heartbreaking
+gut-wrenching
+earth-shattering
+game changer
+game-changer
+unthinkable
+you have to see
+wow
+omg

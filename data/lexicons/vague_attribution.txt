@@ -1,0 +1,45 @@
+# Vague attribution: a claim credited to nobody in particular. One phrase per line, matched as
+# whole words in any letter case.
+experts say
+experts believe
+experts warn
+experts agree
+experts claim
+scientists say
+doctors say
+studies show
+studies suggest
+research shows
+sources say
+sources claim
+sources close to
+sources familiar with
+anonymous sources
+an anonymous source
+unnamed sources
+insiders say
+insiders claim
+some say
+some people say
+many people are saying
+many are saying
+people are saying
+many believe
+it is said
+it is believed
+it is rumored
+it is rumoured
+it has been reported
+rumor has it
+rumour has it
+reportedly
+allegedly
+supposedly
+critics say
+observers say
+word is
+everyone knows
+it is widely known
+according to reports
+according to sources
+according to insiders

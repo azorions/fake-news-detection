@@ -1,0 +1,81 @@
+# Clickbait patterns. Each entry: pattern (regular expression, matched case-insensitively at word
+# boundaries; a plain apostrophe also matches a curly one and a space matches any whitespace),
+# label, explanation and score (0..1, how strong a signal this is).
+# Keep patterns simple and bounded: they run on every submitted text.
+
+- pattern: "you won't believe"
+  label: Curiosity-gap headline
+  explanation: Promises something unbelievable instead of saying what happened.
+  score: 0.8
+- pattern: "you'll never (?:believe|guess)"
+  label: Curiosity-gap headline
+  explanation: Promises something unbelievable instead of saying what happened.
+  score: 0.8
+- pattern: "what (?:happened|happens|he did|she did|they did|he said|she said|they said) next"
+  label: Curiosity-gap headline
+  explanation: Withholds the outcome to make you click.
+  score: 0.8
+- pattern: "will (?:shock|amaze|surprise|stun|blow) (?:you|your mind)"
+  label: Curiosity-gap headline
+  explanation: Tells you how to feel before telling you the facts.
+  score: 0.7
+- pattern: "(?:this|these|here's|here is) (?:is )?(?:the )?(?:one |real |shocking |simple |weird )?(?:reason|trick|secret|truth) (?:why|that|about|behind)"
+  label: Curiosity-gap headline
+  explanation: Teases an answer instead of giving it.
+  score: 0.6
+- pattern: "(?:one|this) (?:weird|simple|strange) trick"
+  label: Curiosity-gap headline
+  explanation: A stock phrase of advertising-style headlines.
+  score: 0.8
+- pattern: "(?:doctors|experts|scientists|banks|they) (?:hate|don't want you to know)"
+  label: Hidden-knowledge claim
+  explanation: Suggests a secret that authorities are keeping from you.
+  score: 0.8
+- pattern: "(?:don't|do not|doesn't|does not) want you to (?:know|see|hear)"
+  label: Hidden-knowledge claim
+  explanation: Suggests a secret that someone is keeping from you.
+  score: 0.8
+- pattern: "what (?:the media|they|the government|nobody) (?:isn't|aren't|is not|are not|won't) (?:telling|showing) you"
+  label: Hidden-knowledge claim
+  explanation: Suggests a secret that someone is keeping from you.
+  score: 0.8
+- pattern: "(?:share|watch|read|see) (?:this |it )?before (?:it's|it is|it gets|they) (?:deleted|taken down|banned|removed|delete it|remove it|too late)"
+  label: Forced urgency
+  explanation: Pushes you to act quickly rather than check the claim.
+  score: 0.9
+- pattern: "(?:share|repost|retweet) (?:this )?(?:if you|with everyone|everywhere|now)"
+  label: Forced urgency
+  explanation: Asks for sharing rather than understanding.
+  score: 0.6
+- pattern: "wake up,? (?:people|america|sheeple|world)"
+  label: Forced urgency
+  explanation: A call to alarm in place of evidence.
+  score: 0.7
+- pattern: "\\d{1,3} (?:things|reasons|ways|facts|signs|secrets|times) (?:you|that|why|to|every|only)"
+  label: Listicle bait
+  explanation: A numbered-list hook that says nothing about the content.
+  score: 0.4
+- pattern: "number \\d{1,2} (?:will|is)"
+  label: Listicle bait
+  explanation: Teases one item of a list to keep you reading.
+  score: 0.7
+- pattern: "(?:goes|went|going) viral"
+  label: Popularity appeal
+  explanation: Popularity is offered in place of substance.
+  score: 0.4
+- pattern: "(?:breaks|broke|is breaking) the internet"
+  label: Popularity appeal
+  explanation: Popularity is offered in place of substance.
+  score: 0.5
+- pattern: "(?:can't|cannot) (?:stop|unsee|believe)"
+  label: Curiosity-gap headline
+  explanation: Describes a reaction instead of the event.
+  score: 0.5
+- pattern: "(?:must|need to|have to) (?:see|watch|read|know)(?: this)?"
+  label: Forced urgency
+  explanation: Insists on attention without saying why.
+  score: 0.4
+- pattern: "the truth about"
+  label: Hidden-knowledge claim
+  explanation: Implies that what you have heard so far is false.
+  score: 0.4
