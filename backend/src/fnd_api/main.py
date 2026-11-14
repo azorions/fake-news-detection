@@ -12,7 +12,9 @@ from fastapi import FastAPI
 from fnd_api import __version__
 from fnd_api.api.errors import install_error_handlers
 from fnd_api.api.v1 import health, meta
+from fnd_api.cache import make_cache
 from fnd_api.config import Settings
+from fnd_api.db.session import init_db, session_factory
 from fnd_api.logging import RequestContextMiddleware, configure_logging, get_logger
 from fnd_api.models_registry import ModelRegistry
 
@@ -31,6 +33,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         if not app.state.models.ready:
             log.warning("no_model_artifact", artifacts_dir=str(settings.artifacts_dir))
+        app.state.engine = await init_db(settings)
+        app.state.sessions = session_factory(app.state.engine)
+        app.state.cache = make_cache(settings)
         # Redirects are followed by hand so each hop can be checked against the SSRF guard.
         app.state.http = httpx.AsyncClient(
             timeout=settings.fetch_timeout_s,
@@ -42,6 +47,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             yield
         finally:
             await app.state.http.aclose()
+            await app.state.cache.close()
+            await app.state.engine.dispose()
 
     app = FastAPI(title="Fake News Detection API", version=__version__, lifespan=lifespan)
     app.state.settings = settings

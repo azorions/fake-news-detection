@@ -20,7 +20,7 @@ async def test_healthz_is_ok(client: httpx.AsyncClient) -> None:
 async def test_readyz_is_ready_when_a_model_is_loaded(client: httpx.AsyncClient) -> None:
     response = await client.get("/readyz")
     assert response.status_code == 200
-    assert response.json()["checks"]["models"] is True
+    assert response.json() == {"status": "ready", "checks": {"models": True, "database": True}}
 
 
 async def test_readyz_is_503_without_an_artifact(tmp_path: Path) -> None:

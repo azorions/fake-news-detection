@@ -177,7 +177,10 @@ def test_label_convention_is_one_for_unreliable() -> None:
             "Fox News Channel. You can follow him on Twitter or like his page at Facebook.",
             ["follow", "Twitter", "like his page"],
         ),
-        ("on Breitbart News Daily, broadcast live on SiriusXM Patriot Channel 125", ["SiriusXM", "125", "Daily"]),
+        (
+            "on Breitbart News Daily, broadcast live on SiriusXM Patriot Channel 125",
+            ["SiriusXM", "125", "Daily"],
+        ),
         ("SiriusXM host Alex Marlow asked about it", ["SiriusXM", "Marlow"]),
     ],
 )
