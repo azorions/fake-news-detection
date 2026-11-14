@@ -110,6 +110,17 @@ async def test_unresolvable_host_is_a_failed_fetch() -> None:
         await validate_url("http://nowhere.example/", resolver=resolver)
 
 
+@pytest.mark.parametrize(
+    "url",
+    ["http://a..b.com/", "http://.com/", "http://" + "a" * 70 + ".com/"],
+    ids=["empty-label", "leading-dot", "label-over-63"],
+)
+async def test_malformed_host_name_is_a_failed_fetch(url: str) -> None:
+    # The operating system's resolver rejects these names before any lookup is sent.
+    with pytest.raises(FetchFailed):
+        await validate_url(url)
+
+
 async def test_private_addresses_can_be_allowed_but_schemes_cannot() -> None:
     await validate_url("http://127.0.0.1:8000/", resolver=resolver, allow_private=True)
     await validate_url("http://internal.example/", resolver=resolver, allow_private=True)

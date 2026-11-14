@@ -84,7 +84,8 @@ async def validate_url(
 
     try:
         addresses = await resolver(host, port or (443 if scheme == "https" else 80))
-    except OSError as error:
+    except (OSError, UnicodeError) as error:
+        # UnicodeError: a host name the resolver cannot encode (an empty or over-long label).
         raise FetchFailed("The site's address could not be found.") from error
     if not addresses:
         raise FetchFailed("The site's address could not be found.")
