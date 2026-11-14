@@ -12,6 +12,7 @@ from fnd_api.cache import Cache
 from fnd_api.config import Settings
 from fnd_api.db.repositories import FeedbackRepository, ScanRepository
 from fnd_api.models_registry import ModelRegistry
+from fnd_api.pipeline.context import PipelineContext
 
 
 def get_settings(request: Request) -> Settings:
@@ -48,7 +49,21 @@ def get_feedback(request: Request) -> FeedbackRepository:
     return FeedbackRepository(request.app.state.sessions)
 
 
+def get_pipeline_context(request: Request) -> PipelineContext:
+    state = request.app.state
+    return PipelineContext(
+        settings=state.settings,
+        models=state.models,
+        cache=state.cache,
+        http=state.http,
+        rules=state.rules,
+        scans=get_scans(request),
+        resolver=state.resolver,
+    )
+
+
 SettingsDep = Annotated[Settings, Depends(get_settings)]
+PipelineDep = Annotated[PipelineContext, Depends(get_pipeline_context)]
 RegistryDep = Annotated[ModelRegistry, Depends(get_registry)]
 HttpClientDep = Annotated[httpx.AsyncClient, Depends(get_http_client)]
 EngineDep = Annotated[AsyncEngine, Depends(get_engine)]

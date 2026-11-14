@@ -17,6 +17,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from fnd_api.api.errors import REQUEST_ID_HEADER, new_request_id, problem_response
 
 _SAFE_REQUEST_ID = re.compile(r"[A-Za-z0-9._-]{1,64}")
+MAX_BODY_BYTES = 2_000_000  # 100,000 characters of JSON-escaped text fit several times over
 
 
 def configure_logging(json_logs: bool = True, level: str = "INFO") -> None:
@@ -76,6 +77,13 @@ class RequestContextMiddleware:
 
         start = time.perf_counter()
         try:
+            declared = Headers(scope=scope).get("content-length", "")
+            if declared.isdigit() and int(declared) > MAX_BODY_BYTES:
+                too_large = problem_response(
+                    413, "payload_too_large", "The request body is too large.", request_id
+                )
+                await too_large(scope, receive, send_with_id)
+                return
             await self.app(scope, receive, send_with_id)
         except Exception:
             self._log.exception("unhandled_error", method=scope["method"], path=scope["path"])

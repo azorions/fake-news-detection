@@ -5,7 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Self
 
-from pydantic import model_validator
+from limits import parse as parse_rate_limit
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -18,6 +19,7 @@ class Settings(BaseSettings):
     cache_dir: Path | None = None
     redis_url: str | None = None  # when set, the scan cache uses Redis instead of the disk cache
     artifacts_dir: Path = Path("ml/artifacts")
+    lexicon_dir: Path = Path("data/lexicons")
 
     # Limits
     rate_limit_analyze: str = "30/minute"
@@ -31,6 +33,12 @@ class Settings(BaseSettings):
     store_input_text: bool = True
     log_json: bool = True
     log_level: str = "INFO"
+
+    @field_validator("rate_limit_analyze", "rate_limit_read")
+    @classmethod
+    def _valid_rate_limit(cls, value: str) -> str:
+        parse_rate_limit(value)  # raises ValueError for anything but "<count>/<period>"
+        return value
 
     @model_validator(mode="after")
     def _derive_storage_paths(self) -> Self:

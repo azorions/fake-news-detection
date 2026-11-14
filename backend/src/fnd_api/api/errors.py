@@ -20,11 +20,14 @@ _CODE_BY_STATUS = {404: "not_found", 413: "payload_too_large", 429: "rate_limite
 class ApiError(Exception):
     """An expected failure: ``code`` is one of the design's stable codes, ``detail`` is shown to users."""
 
-    def __init__(self, code: str, status: int, detail: str) -> None:
+    def __init__(
+        self, code: str, status: int, detail: str, headers: dict[str, str] | None = None
+    ) -> None:
         super().__init__(detail)
         self.code = code
         self.status = status
         self.detail = detail
+        self.headers = headers
 
 
 def new_request_id() -> str:
@@ -66,7 +69,7 @@ def code_for_status(status: int) -> str:
 
 async def _api_error(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, ApiError)
-    return problem_response(exc.status, exc.code, exc.detail, request_id_of(request))
+    return problem_response(exc.status, exc.code, exc.detail, request_id_of(request), exc.headers)
 
 
 async def _validation_error(request: Request, exc: Exception) -> JSONResponse:

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from pathlib import Path
 
 import httpx
@@ -37,10 +38,35 @@ def settings(tmp_path: Path, artifacts_dir: Path) -> Settings:
     return Settings(var_dir=tmp_path / "var", artifacts_dir=artifacts_dir, log_json=False)
 
 
+async def public_resolver(host: str, port: int) -> list[str]:
+    """Every host name is "public" in tests; nothing is really resolved."""
+    return ["93.184.216.34"]
+
+
+ClientFactory = Callable[[Settings], AbstractAsyncContextManager[tuple[FastAPI, httpx.AsyncClient]]]
+
+
+@asynccontextmanager
+async def running(settings: Settings) -> AsyncIterator[tuple[FastAPI, httpx.AsyncClient]]:
+    """A started application for ``settings`` and an in-process client for it."""
+    application = create_app(settings)
+    async with application.router.lifespan_context(application):
+        application.state.resolver = public_resolver
+        transport = httpx.ASGITransport(app=application)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as http:
+            yield application, http
+
+
+@pytest.fixture
+def make_client() -> ClientFactory:
+    return running
+
+
 @pytest.fixture
 async def app(settings: Settings) -> AsyncIterator[FastAPI]:
     application = create_app(settings)
     async with application.router.lifespan_context(application):
+        application.state.resolver = public_resolver
         yield application
 
 

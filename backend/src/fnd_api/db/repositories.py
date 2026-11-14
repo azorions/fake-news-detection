@@ -112,6 +112,10 @@ class ScanRepository:
         async with self._sessions.begin() as session:
             session.add(row)
 
+    async def exists(self, scan_id: str) -> bool:
+        async with self._sessions() as session:
+            return await session.scalar(select(Scan.id).where(Scan.id == scan_id)) is not None
+
     async def get(self, scan_id: str) -> AnalysisResponse | None:
         async with self._sessions() as session:
             snapshot = await session.scalar(select(Scan.result_json).where(Scan.id == scan_id))

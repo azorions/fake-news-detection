@@ -11,12 +11,15 @@ from fastapi import FastAPI
 
 from fnd_api import __version__
 from fnd_api.api.errors import install_error_handlers
-from fnd_api.api.v1 import health, meta
+from fnd_api.api.v1 import analyze, health, meta
 from fnd_api.cache import make_cache
 from fnd_api.config import Settings
 from fnd_api.db.session import init_db, session_factory
+from fnd_api.ingest.url_guard import system_resolver
 from fnd_api.logging import RequestContextMiddleware, configure_logging, get_logger
 from fnd_api.models_registry import ModelRegistry
+from fnd_api.ratelimit import RateLimiter
+from fnd_api.signals.rules import RuleEngine
 
 USER_AGENT = f"fnd-api/{__version__}"
 
@@ -33,6 +36,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         if not app.state.models.ready:
             log.warning("no_model_artifact", artifacts_dir=str(settings.artifacts_dir))
+        app.state.rules = await anyio.to_thread.run_sync(RuleEngine.load, settings.lexicon_dir)
         app.state.engine = await init_db(settings)
         app.state.sessions = session_factory(app.state.engine)
         app.state.cache = make_cache(settings)
@@ -52,8 +56,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="Fake News Detection API", version=__version__, lifespan=lifespan)
     app.state.settings = settings
+    app.state.limiter = RateLimiter()
+    app.state.resolver = system_resolver  # tests replace it; production resolves through the OS
     install_error_handlers(app)
     app.add_middleware(RequestContextMiddleware)
     app.include_router(health.router)
     app.include_router(meta.router, prefix="/api/v1")
+    app.include_router(analyze.router, prefix="/api/v1")
     return app
