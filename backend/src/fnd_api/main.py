@@ -11,7 +11,7 @@ from fastapi import FastAPI
 
 from fnd_api import __version__
 from fnd_api.api.errors import install_error_handlers
-from fnd_api.api.v1 import analyze, health, meta
+from fnd_api.api.v1 import analyze, feedback, health, meta, scans
 from fnd_api.cache import make_cache
 from fnd_api.config import Settings
 from fnd_api.db.session import init_db, session_factory
@@ -63,4 +63,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router)
     app.include_router(meta.router, prefix="/api/v1")
     app.include_router(analyze.router, prefix="/api/v1")
+    app.include_router(scans.router, prefix="/api/v1")
+    app.include_router(feedback.router, prefix="/api/v1")
     return app
