@@ -67,6 +67,15 @@ def length_bucket(n_words: int) -> str:
     return "article"
 
 
+def add_year(frame: pd.DataFrame) -> pd.DataFrame:
+    """Return a copy with ``year`` (nullable ``Int16``) read from ``date``; empty where the date
+    is missing or unreadable. Call it after duplicate removal, which fills in missing dates."""
+    out = frame.copy()
+    dates = pd.to_datetime(out["date"], errors="coerce", format="%Y-%m-%d")
+    out["year"] = dates.dt.year.astype("Int16")
+    return out
+
+
 def clean_frame(frame: pd.DataFrame) -> pd.DataFrame:
     """Return a cleaned copy of ``frame`` with these extra columns:
 

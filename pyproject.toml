@@ -23,10 +23,13 @@ dev = [
     "poethepoet>=0.30",
     "pandas-stubs",
     "types-pyyaml",
+    "types-psutil",
 ]
 
 [tool.uv]
 package = false
+# Keep downloads on this drive: the PyTorch wheels alone are 2.4 GB.
+cache-dir = ".uv-cache"
 environments = ["sys_platform == 'win32'", "sys_platform == 'linux'"]
 
 [tool.uv.workspace]

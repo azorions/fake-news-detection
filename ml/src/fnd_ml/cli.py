@@ -24,6 +24,20 @@ RawDirOption = Annotated[Path, typer.Option(help="Where raw dataset files are st
 
 DEFAULT_REGISTRY = Path("data/registry/datasets.yaml")
 DEFAULT_RAW_DIR = Path("data/raw")
+BUILD_RAM_GB = 3.0  # the whole corpus is held in memory several times over while it is cleaned
+
+
+def _check_memory(gb: float, what: str, force: bool) -> None:
+    """Stop early, with the reason, instead of being killed half-way for lack of memory."""
+    from fnd_ml.common import resources
+
+    if force:
+        return
+    try:
+        resources.require_free_ram(gb, what)
+    except resources.InsufficientMemory as error:
+        typer.echo(str(error))
+        raise typer.Exit(code=2) from error
 
 
 @data_app.command("download")
@@ -55,14 +69,43 @@ def data_build(
     raw_dir: RawDirOption = DEFAULT_RAW_DIR,
     out_dir: Annotated[Path, typer.Option(help="Output directory.")] = Path("data/processed"),
     seed: Annotated[int, typer.Option(help="Split seed.")] = 13,
+    force: Annotated[bool, typer.Option(help="Run even when free memory looks too low.")] = False,
 ) -> None:
     """Clean, deduplicate and split the raw datasets; write parquet files and a manifest."""
     from fnd_ml.data.build import build_corpus
 
+    _check_memory(BUILD_RAM_GB, "The data build", force)
     manifest = build_corpus(raw_dir, out_dir, seed=seed)
-    typer.echo(json.dumps({k: manifest[k] for k in ("sources", "dedup", "rows")}, indent=2))
-    shared = manifest["shared_groups_between_splits"], manifest["shared_hashes_between_splits"]
-    typer.echo(f"shared groups / hashes between splits: {shared[0]} / {shared[1]}")
+    shown = ("sources", "dedup", "near_dedup", "rows", "dates", "external")
+    typer.echo(json.dumps({key: manifest[key] for key in shown}, indent=2))
+    shared = (
+        manifest["shared_groups_between_splits"],
+        manifest["shared_hashes_between_splits"],
+        manifest["shared_near_duplicate_clusters_between_splits"],
+    )
+    typer.echo(
+        "shared groups / hashes / near-duplicate clusters between splits: "
+        f"{shared[0]} / {shared[1]} / {shared[2]}"
+    )
+    if manifest["external_missing"]:
+        missing = ", ".join(manifest["external_missing"])
+        typer.echo(f"evaluation sets not found (run `fnd data download`): {missing}")
+
+
+@data_app.command("freeze")
+def data_freeze(
+    processed_dir: Annotated[Path, typer.Option(help="Output of `fnd data build`.")] = Path(
+        "data/processed"
+    ),
+    lock: Annotated[Path, typer.Option(help="Lock file to write.")] = Path(
+        "ml/configs/data_v2.lock"
+    ),
+) -> None:
+    """Freeze the current build: models may only be trained and compared on this manifest."""
+    from fnd_ml.data.build import write_lock
+
+    digest = write_lock(processed_dir, lock)
+    typer.echo(f"frozen: manifest sha256 {digest} -> {lock}")
 
 
 @data_app.command("probe")
