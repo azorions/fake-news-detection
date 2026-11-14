@@ -65,6 +65,40 @@ def data_build(
     typer.echo(f"shared groups / hashes between splits: {shared[0]} / {shared[1]}")
 
 
+@data_app.command("probe")
+def data_probe(
+    processed_dir: Annotated[Path, typer.Option(help="Output of `fnd data build`.")] = Path(
+        "data/processed"
+    ),
+    report: Annotated[
+        Path | None, typer.Option(help="Baseline report (JSON) whose top features are checked.")
+    ] = None,
+    identifiers: Annotated[Path, typer.Option(help="Source identifier list.")] = Path(
+        "data/registry/source_identifiers.txt"
+    ),
+    max_rows_per_dataset: Annotated[int, typer.Option(help="Sample size per dataset.")] = 8000,
+) -> None:
+    """Leak probes: can the dataset be told from the text, and do top features name a source?"""
+    from fnd_ml.data.leak_probe import (
+        count_unnamed,
+        label_probe,
+        load_identifiers,
+        load_probe_sample,
+        origin_probe,
+    )
+
+    sample = load_probe_sample(processed_dir, max_rows_per_dataset=max_rows_per_dataset)
+    result: dict[str, object] = {"origin": origin_probe(sample)}
+    flagged: list[str] = []
+    if report is not None:
+        top_features = json.loads(report.read_text(encoding="utf-8"))["top_features"]
+        flagged = label_probe(top_features, load_identifiers(identifiers))
+        result["label"] = {"flagged": flagged, "unnamed_buckets": count_unnamed(top_features)}
+    typer.echo(json.dumps(result, indent=2))
+    if flagged:
+        raise typer.Exit(code=1)
+
+
 @train_app.command("baseline")
 def train_baseline_command(
     processed_dir: Annotated[Path, typer.Option(help="Output of `fnd data build`.")] = Path(
