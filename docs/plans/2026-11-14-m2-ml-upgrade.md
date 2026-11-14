@@ -170,17 +170,22 @@ def test_label_probe_flags_identifier_tokens():
     top = {"unreliable": ["shocking", "breitbart news", "via"], "reliable": ["said on", "reuters"]}
     assert label_probe(top, frozenset({"breitbart", "reuters"})) == ["breitbart news", "reuters"]
 
+
 def test_label_probe_matches_whole_tokens_only():
     assert label_probe({"unreliable": ["report", "part of"]}, frozenset({"rt"})) == []
+
 
 def test_two_word_identifier():
     assert label_probe({"reliable": ["york times"]}, frozenset({"york times"})) == ["york times"]
 
-def test_origin_probe_separates_distinct_vocabularies():      # dataset A uses words a*, B uses b*
+
+def test_origin_probe_separates_distinct_vocabularies():  # dataset A uses words a*, B uses b*
     assert origin_probe(frame)["accuracy"] > 0.95
 
+
 def test_origin_probe_is_near_chance_for_one_vocabulary():
-    r = origin_probe(frame); assert r["accuracy"] < r["majority_baseline"] + 0.15
+    r = origin_probe(frame)
+    assert r["accuracy"] < r["majority_baseline"] + 0.15
 ```
 
 - [ ] **Step 2: Run** `uv run pytest tests/unit/ml/test_leak_probe.py` — Expected: FAIL.
@@ -297,14 +302,17 @@ def test_stylometric_counts():
     assert f["mean_sentence_words"] == pytest.approx(7 / 3)
     assert f["second_person_share"] == pytest.approx(1 / 7)
 
+
 def test_stylometric_handles_empty_text():
     assert np.isfinite(stylometric("")).all()
 
-def test_xgb_learns_a_stylistic_rule(tmp_path):     # label 1 = text in capitals with "!!!"
+
+def test_xgb_learns_a_stylistic_rule(tmp_path):  # label 1 = text in capitals with "!!!"
     scorer = xgb.fit_scorer(train, val, calib)
     assert macro_f1(test.label, scorer(test) >= 0.5) > 0.9
 
-def test_scorers_return_one_probability_per_row(): ...   # both families, values in [0.01, 0.99]
+
+def test_scorers_return_one_probability_per_row(): ...  # both families, values in [0.01, 0.99]
 def test_training_refuses_a_changed_manifest(tmp_path): ...  # ManifestMismatch
 ```
 
@@ -437,28 +445,43 @@ def test_head_tail_keeps_both_ends():
     ids, cut = head_tail(list(range(1000)), 100)
     assert cut and ids[:75] == list(range(75)) and ids[75:] == list(range(975, 1000))
 
+
 def test_short_body_is_untouched():
     assert head_tail([1, 2, 3], 100) == ([1, 2, 3], False)
 
+
 def test_build_input_layout_and_length():
     ids, cut = build_input([7] * 100, list(range(100, 2000)), cls_id=1, sep_id=2)
-    assert len(ids) == 512 and cut and ids[0] == 1 and ids[65] == 2 and ids[-1] == 2 and ids[1:65] == [7] * 64
+    assert (
+        len(ids) == 512
+        and cut
+        and ids[0] == 1
+        and ids[65] == 2
+        and ids[-1] == 2
+        and ids[1:65] == [7] * 64
+    )
+
 
 def test_no_title_gives_cls_body_sep():
     assert build_input([], [5, 6, 7], cls_id=1, sep_id=2) == ([1, 5, 6, 7, 2], False)
+
 
 def test_weights_balance_labels_inside_each_dataset():
     w = sampling_weights(["a"] * 4 + ["b"] * 6, [1, 0, 0, 0, 1, 1, 1, 1, 1, 0])
     assert w[0] == pytest.approx(w[1:4].sum()) and w[:4].sum() / w.sum() == pytest.approx(0.4)
 
+
 def test_epoch_order_is_repeatable_and_changes_per_epoch(): ...
 
-@pytest.mark.slow          # tiny random DeBERTa-v2 and a word-level tokenizer built in the test; CPU
-def test_training_lowers_the_loss(tmp_path): ...            # last logged loss < 0.5 × first
+
+@pytest.mark.slow  # tiny random DeBERTa-v2 and a word-level tokenizer built in the test; CPU
+def test_training_lowers_the_loss(tmp_path): ...  # last logged loss < 0.5 × first
 @pytest.mark.slow
-def test_resume_matches_an_uninterrupted_run(tmp_path): ... # 40 steps vs 20 + resume to 40: loss within 1e-4
+def test_resume_matches_an_uninterrupted_run(
+    tmp_path,
+): ...  # 40 steps vs 20 + resume to 40: loss within 1e-4
 @pytest.mark.slow
-def test_resume_ignores_a_half_written_checkpoint(tmp_path): ...   # stray checkpoint.pt.tmp
+def test_resume_ignores_a_half_written_checkpoint(tmp_path): ...  # stray checkpoint.pt.tmp
 ```
 
 - [ ] **Step 2: Run** `uv run pytest tests/unit/ml/test_truncation.py tests/unit/ml/test_transformer_sampling.py`
@@ -583,25 +606,42 @@ otherwise fp32. A p95 above 500 ms for the shipped variant is reported as a gate
 
 ```python
 # unit, on tests/fixtures/tiny_transformer
-def test_predict_returns_a_calibrated_probability(): ...     # 0.01 <= p <= 0.99, version "v1-tinyfix"
+def test_predict_returns_a_calibrated_probability(): ...  # 0.01 <= p <= 0.99, version "v1-tinyfix"
 def test_long_text_is_truncated_not_rejected():
-    out = clf.predict("A title", "word " * 20000)             # about 100,000 characters
+    out = clf.predict("A title", "word " * 20000)  # about 100,000 characters
     assert out.truncated and 0.01 <= out.p_unreliable <= 0.99
-def test_three_words_without_a_title(): ...                   # predict(None, "markets fell today") works
-def test_damaged_model_file_raises_on_load(tmp_path): ...     # model.onnx cut to 100 bytes
+
+
+def test_three_words_without_a_title(): ...  # predict(None, "markets fell today") works
+def test_damaged_model_file_raises_on_load(tmp_path): ...  # model.onnx cut to 100 bytes
+
 
 # integration
-async def test_meta_reports_the_transformer(client): ...      # models["transformer"] == "v1-tinyfix"
-async def test_transformer_gives_the_verdict(client): ...     # classifier.model == "tiny-fixture",
-                                                              # calibration == "temperature", stage ok
-async def test_without_the_artifact_the_baseline_answers(client): ...
+async def test_meta_reports_the_transformer(client): ...  # models["transformer"] == "v1-tinyfix"
+async def test_transformer_gives_the_verdict(client):
+    ...  # classifier.model == "tiny-fixture",
+    # calibration == "temperature", stage ok
+
+
+async def test_without_the_artifact_the_baseline_answers(client):
+    ...
     # classifier.model == "baseline"; classifier stage status "degraded", detail contains "baseline used"
-async def test_damaged_artifact_does_not_stop_the_service(client): ...   # /readyz 200, baseline answers
-async def test_runtime_failure_falls_back(client, monkeypatch): ...      # 200, "transformer model failed"
-async def test_result_is_not_served_from_the_cache_after_a_model_change(make_client): ...  # cached is False
+
+
+async def test_damaged_artifact_does_not_stop_the_service(
+    client,
+): ...  # /readyz 200, baseline answers
+async def test_runtime_failure_falls_back(
+    client, monkeypatch
+): ...  # 200, "transformer model failed"
+async def test_result_is_not_served_from_the_cache_after_a_model_change(
+    make_client,
+): ...  # cached is False
 async def test_satire_adds_a_tag_and_keeps_the_verdict(client): ...
 @pytest.mark.slow
-async def test_real_artifact_answers(real_client): ...        # skipped when ml/artifacts has no transformer
+async def test_real_artifact_answers(
+    real_client,
+): ...  # skipped when ml/artifacts has no transformer
 ```
 
 - [ ] **Step 2: Run** `uv run pytest tests/unit/ml/test_onnx_classifier.py
