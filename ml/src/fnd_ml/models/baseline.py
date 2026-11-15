@@ -17,20 +17,24 @@ from collections import Counter
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Self
+from typing import TYPE_CHECKING, Any, Self
 
 import numpy as np
 import scipy.sparse as sp
 from numpy.typing import ArrayLike, NDArray
 from scipy.special import expit
 from sklearn.feature_extraction import FeatureHasher
-from sklearn.isotonic import IsotonicRegression
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import normalize
 
-from fnd_ml.common.tokens import MAX_TOKENS, analyze
+from fnd_ml.calibration.isotonic import apply_isotonic, fit_isotonic
+from fnd_ml.common.tokens import MAX_TOKENS, analyze, analyze_chars
 
-PROBABILITY_FLOOR = 0.01  # calibrated probabilities are clipped to [0.01, 0.99]
+if TYPE_CHECKING:
+    import pandas as pd
+
+    from fnd_ml.models.scorer import Scorer
+
 _BATCH = 2000
 
 
@@ -41,6 +45,7 @@ class BaselineConfig:
     min_df: int = 3
     C: float = 4.0
     max_iter: int = 300
+    char_ngrams: bool = False  # also hash character 3-5-grams inside word boundaries
 
 
 class BaselineModel:
@@ -68,10 +73,17 @@ class BaselineModel:
         indices: NDArray[np.int32] = self._hasher.transform([[f] for f in features]).indices
         return indices
 
+    def _analyze(self, text: str) -> list[str]:
+        """The feature strings of ``text``. Character n-grams carry a ``#`` so that the 3-gram
+        "now" inside "known" does not share a bucket with the word "now"."""
+        features = analyze(text, self.config.max_tokens)
+        if self.config.char_ngrams:
+            features += [f"#{gram}" for gram in analyze_chars(text, self.config.max_tokens)]
+        return features
+
     def _counts(self, texts: Iterable[str]) -> sp.csr_matrix:
-        max_tokens = self.config.max_tokens
         chunks = [
-            self._hasher.transform([analyze(text, max_tokens) for text in batch])
+            self._hasher.transform([self._analyze(text) for text in batch])
             for batch in itertools.batched(texts, _BATCH)
         ]
         if not chunks:
@@ -94,22 +106,26 @@ class BaselineModel:
 
     # ------------------------------------------------------------ training
 
-    def fit(self, texts: Iterable[str], y: ArrayLike) -> Self:
-        labels = np.asarray(y, dtype=int)
+    def fit_features(self, texts: Iterable[str]) -> sp.csr_matrix:
+        """Learn the IDF weights from ``texts`` and return their weighted rows."""
         counts = self._counts(texts)
-        if counts.shape[0] != len(labels):
-            raise ValueError(f"got {counts.shape[0]} texts but {len(labels)} labels")
-
         n_docs = counts.shape[0]
         document_frequency = np.bincount(counts.indices, minlength=self.config.n_features)
         idf = np.log((1 + n_docs) / (1 + document_frequency)) + 1.0
         idf[document_frequency < self.config.min_df] = 0.0
         self.idf_ = idf.astype(np.float32)
+        return self._weight(counts)
+
+    def fit(self, texts: Iterable[str], y: ArrayLike) -> Self:
+        labels = np.asarray(y, dtype=int)
+        features = self.fit_features(texts)
+        if features.shape[0] != len(labels):
+            raise ValueError(f"got {features.shape[0]} texts but {len(labels)} labels")
 
         classifier = LogisticRegression(
             C=self.config.C, class_weight="balanced", max_iter=self.config.max_iter
         )
-        classifier.fit(self._weight(counts), labels)
+        classifier.fit(features, labels)
         self.coef_ = classifier.coef_.ravel().astype(np.float64)
         self.intercept_ = float(classifier.intercept_[0])
         self.calib_x_ = self.calib_y_ = None
@@ -117,10 +133,7 @@ class BaselineModel:
 
     def calibrate_scores(self, raw: ArrayLike, y: ArrayLike) -> Self:
         """Fit the isotonic calibrator on raw probabilities from ``predict_raw``."""
-        isotonic = IsotonicRegression(y_min=0.0, y_max=1.0, out_of_bounds="clip")
-        isotonic.fit(np.asarray(raw, dtype=float), np.asarray(y, dtype=float))
-        self.calib_x_ = np.asarray(isotonic.X_thresholds_, dtype=np.float64)
-        self.calib_y_ = np.asarray(isotonic.y_thresholds_, dtype=np.float64)
+        self.calib_x_, self.calib_y_ = fit_isotonic(raw, y)
         return self
 
     def calibrate(self, texts: Iterable[str], y: ArrayLike) -> Self:
@@ -140,10 +153,9 @@ class BaselineModel:
         return raw
 
     def to_calibrated(self, raw: ArrayLike) -> NDArray[np.float64]:
-        values = np.asarray(raw, dtype=float)
-        if self.calib_x_ is not None and self.calib_y_ is not None:
-            values = np.interp(values, self.calib_x_, self.calib_y_)
-        return np.clip(values, PROBABILITY_FLOOR, 1.0 - PROBABILITY_FLOOR)
+        if self.calib_x_ is None or self.calib_y_ is None:
+            return apply_isotonic(raw, None)
+        return apply_isotonic(raw, (self.calib_x_, self.calib_y_))
 
     def predict_proba(self, texts: Iterable[str]) -> NDArray[np.float64]:
         """Calibrated P(unreliable), clipped to [0.01, 0.99]."""
@@ -154,22 +166,25 @@ class BaselineModel:
     def top_features(self, sample_texts: Iterable[str], k: int = 50) -> dict[str, list[str]]:
         """Names of the ``k`` strongest buckets per class, named from ``sample_texts``.
 
-        A bucket is named after the most frequent n-gram in the sample that hashes into it.
+        A bucket is named after the most frequent n-gram in the sample that hashes into it; a
+        bucket no sample n-gram hashes into is shown as ``<bucket N>``.
         """
         if self.coef_ is None or self.idf_ is None:
             raise RuntimeError("model is not fitted")
         strength = self.coef_ * self.idf_
         order = np.argsort(strength)
         wanted = {"unreliable": order[::-1][:k], "reliable": order[:k]}
+        to_name = {int(i) for indices in wanted.values() for i in indices}
 
         counter: Counter[str] = Counter()
         for text in sample_texts:
-            counter.update(analyze(text, self.config.max_tokens))
-        names = [ngram for ngram, count in counter.items() if count >= 2]
+            counter.update(self._analyze(text))
         best: dict[int, tuple[str, int]] = {}
-        for ngram, index in zip(names, self.feature_indices(names), strict=True):
-            if counter[ngram] > best.get(int(index), ("", 0))[1]:
-                best[int(index)] = (ngram, counter[ngram])
+        for names in itertools.batched(counter, 100_000):
+            for ngram, index in zip(names, self.feature_indices(list(names)), strict=True):
+                bucket = int(index)
+                if bucket in to_name and counter[ngram] > best.get(bucket, ("", 0))[1]:
+                    best[bucket] = (ngram, counter[ngram])
         return {
             side: [best[int(i)][0] if int(i) in best else f"<bucket {int(i)}>" for i in indices]
             for side, indices in wanted.items()
@@ -212,3 +227,29 @@ class BaselineModel:
         model.intercept_ = float(document["intercept"])
         model.metadata = dict(document["metadata"])
         return model
+
+
+# ------------------------------------------------------------ the common scorer interface
+
+
+def _as_scorer(model: BaselineModel) -> Scorer:
+    def score(frame: pd.DataFrame) -> NDArray[np.float64]:
+        return model.predict_proba(frame["model_text"])
+
+    return score
+
+
+def fit_scorer(
+    train: pd.DataFrame,
+    val: pd.DataFrame,
+    calib: pd.DataFrame,
+    config: BaselineConfig | None = None,
+) -> Scorer:
+    """Fit on ``train`` and calibrate on ``calib``. ``val`` is not used: nothing is selected."""
+    model = BaselineModel(config).fit(train["model_text"], train["label"])
+    model.calibrate(calib["model_text"], calib["label"])
+    return _as_scorer(model)
+
+
+def load_scorer(artifact_dir: Path) -> Scorer:
+    return _as_scorer(BaselineModel.load(artifact_dir))

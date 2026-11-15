@@ -20,6 +20,7 @@ from sklearn.metrics import accuracy_score, f1_score
 
 from fnd_ml.common.tokens import analyze
 
+DEFAULT_IDENTIFIERS = Path("data/registry/source_identifiers.txt")
 _UNNAMED = "<bucket "
 _PROBE_SPLITS = ("train", "val")
 _COLUMNS = ["dataset", "label", "model_text"]

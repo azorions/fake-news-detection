@@ -1,0 +1,12 @@
+# Comparison model: XGBoost over stylometric features + an SVD of the hashed TF-IDF.
+n_features: 131072          # 2**17 hash buckets (the SVD projection is components x buckets, dense)
+max_tokens: 600             # only the first 600 words of each text are read
+min_df: 3                   # buckets seen in fewer than 3 training documents are ignored
+svd_components: 256
+n_estimators: 600           # upper limit; early stopping on val picks the number of trees
+max_depth: 6
+learning_rate: 0.08
+subsample: 0.8
+colsample_bytree: 0.8
+early_stopping_rounds: 30
+seed: 13

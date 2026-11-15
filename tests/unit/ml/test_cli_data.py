@@ -60,3 +60,36 @@ def test_freeze_records_the_manifest_hash(monkeypatch: pytest.MonkeyPatch, tmp_p
     assert result.exit_code == 0, result.output
     digest = json.loads(lock.read_text(encoding="utf-8"))["manifest_sha256"]
     assert len(digest) == 64 and digest in result.output
+
+
+def test_training_stops_with_the_way_out_when_the_data_is_not_frozen(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)  # no ml/configs/data_v2.lock here
+    (tmp_path / "baseline.yaml").write_text("n_features: 4096\n", encoding="utf-8")
+    (tmp_path / "processed").mkdir()
+    (tmp_path / "processed" / "splits_manifest.json").write_text("{}", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "train",
+            "baseline",
+            "--processed-dir",
+            "processed",
+            "--config",
+            "baseline.yaml",
+            "--force",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "fnd data freeze" in result.output
+    assert not (tmp_path / "ml").exists()
+
+
+def test_an_unknown_ablation_is_refused(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["train", "baseline", "--ablation", "bigram"])
+
+    assert result.exit_code == 2
+    assert "bigram" in result.output
