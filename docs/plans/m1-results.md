@@ -4,11 +4,11 @@ Branch `m1-mvp`, baseline artifact `v1-69c6a3df`, Windows 11, Python 3.12.10.
 
 ## Status
 
-M1 is verified except for one item: the GPU smoke test (design: "GPU smoke test first") has not run.
-`uv sync --extra train` (PyTorch, 2.4 GB) was killed for lack of memory on 2026-11-12 and has not been
-restarted; on 2026-11-14 the machine had 0.4 GB of 15.9 GB RAM free and 7.6 GB free on C:. Nothing in M1
-needs PyTorch, but M2 does. The merge to `main` and the `m1` tag wait for that test and for the
-whole-branch review.
+M1 is verified. The last open item, the GPU smoke test (design: "GPU smoke test first"), passed on
+2026-11-15 during M2 (plan Task 7): `uv sync --extra train` had been killed for lack of memory on
+2026-11-12 and failed once more on 2026-11-15 with Windows error 1450 while copying files; it succeeded
+with 7.9 GB of RAM free and `UV_CONCURRENT_INSTALLS=2`. Branch `main` and tag `m1` point at the last
+commit of `m1-mvp` (7f09c9c); nothing is pushed.
 
 ## Verification list
 
@@ -24,7 +24,7 @@ whole-branch review.
 | 31st analysis in a minute → 429 | pass | 30 × 200, then 429 `rate_limited` with `Retry-After: 60` |
 | `http://127.0.0.1/`, `http://169.254.169.254/` | pass | both 422 `fetch_blocked`, `application/problem+json` |
 | Scan in `GET /scans`; feedback persists | pass | scan listed; feedback 201, `feedback_count` 1, row present in the SQLite file after the server stopped |
-| GPU smoke test (`scripts/smoke_gpu.py`) | **not run** | see Status |
+| GPU smoke test (`scripts/smoke_gpu.py`) | pass (2026-11-15) | torch 2.14.1+cu126 on the Quadro P4000 (8.0 GiB); build lists `sm_61`; loss 0.6984 → 0.0286 in 5 steps |
 
 The live checks ran against `uv run poe serve` on 127.0.0.1:8000 with the real baseline artifact and a
 temporary data directory.
