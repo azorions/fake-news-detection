@@ -1,0 +1,121 @@
+# Names that identify where a text came from. None of them may be among the baseline's 50
+# strongest features per class (the leak-probe gate in docs/design.md, section 4).
+#
+# One term per line, case-insensitive. A one-word term flags any feature that contains that word;
+# a two-word term flags the feature that equals it. Ordinary English words are left out on purpose
+# (people.com, time.com, today.com, variety.com, ...): they would flag honest features.
+
+# Wire services and the outlets found by the M1 leak probe
+reuters
+ap
+afp
+tass
+xinhua
+upi
+breitbart
+sputnik
+rt
+infowars
+wnd
+trunews
+siriusxm
+21wire
+daily caller
+getty images
+marlow
+milo            # Breitbart's "MILO" branding and bylines
+
+# Fact-checkers the datasets were built from
+politifact
+gossipcop
+snopes
+buzzfeed
+
+# News outlets
+cnn
+msnbc
+nbc
+cbs
+cbsnews
+npr
+bbc
+politico
+newsmax
+foxnews
+fox news
+nytimes
+york times
+washingtonpost
+washington post
+huffingtonpost
+huffington post
+usatoday
+usa today
+theguardian
+the guardian
+nydailynews
+daily news
+dailynews
+businessinsider
+business insider
+forbes
+yahoo
+aol
+msn
+wikipedia
+
+# Entertainment publishers with 50 or more rows in FakeNewsNet
+dailymail
+daily mail
+usmagazine
+us weekly
+etonline
+entertainment tonight
+longroom
+hollywoodlife
+hollywoodreporter
+hollywood reporter
+radaronline
+thewrap
+inquisitr
+harpersbazaar
+bravotv
+celebrityinsider
+cosmopolitan
+imdb
+vanityfair
+vanity fair
+eonline
+pagesix
+page six
+instyle
+refinery29
+iheart
+newidea
+bojtv
+wstale
+okmagazine
+celebritynetworth
+rollingstone
+rolling stone
+tmz
+popsugar
+hellogiggles
+popculture
+intouchweekly
+tvline
+zerchoo
+hellomagazine
+justjared
+nextdivas
+elitedaily
+teenvogue
+gossipbucket
+trendolizer
+lifeandstylemag
+toofab
+thesun
+cheatsheet
+thisisinsider
+thecut
+scoopnest

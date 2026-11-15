@@ -6,9 +6,10 @@ import pytest
 from sklearn.metrics import f1_score
 
 from fnd_ml.common.artifacts import read_manifest, register, resolve
-from fnd_ml.common.tokens import analyze, word_tokens
+from fnd_ml.common.tokens import analyze, analyze_chars, word_tokens
 from fnd_ml.models.baseline import BaselineConfig, BaselineModel
-from fnd_ml.models.train_baseline import train_baseline
+from fnd_ml.models.train_baseline import ablation_char_ngrams, stratified_positions, train_baseline
+from tests.fixtures.processed import two_dataset_corpus, write_processed
 from tests.fixtures.synthetic import NEUTRAL_TEXT, SENSATIONAL_TEXT, make_corpus
 
 # ---------------------------------------------------------------- tokens
@@ -147,20 +148,22 @@ def test_a_registered_artifact_whose_files_are_gone_does_not_resolve(tmp_path: P
 # ---------------------------------------------------------------- training command
 
 
+def _identifiers(tmp_path: Path, *terms: str) -> Path:
+    path = tmp_path / "identifiers.txt"
+    path.write_text("\n".join(terms) + "\n", encoding="utf-8")
+    return path
+
+
 def test_training_writes_an_artifact_a_registry_entry_and_a_report(tmp_path: Path) -> None:
-    processed = tmp_path / "processed"
-    (processed / "splits").mkdir(parents=True)
-    frame = make_corpus(400, seed=2)
-    bounds = {"train": (0, 240), "val": (240, 290), "calib": (290, 350), "test": (350, 400)}
-    for split, (start, end) in bounds.items():
-        frame.iloc[start:end].to_parquet(processed / "splits" / f"{split}.parquet", index=False)
-    (processed / "splits_manifest.json").write_text('{"seed": 13}', encoding="utf-8")
+    processed, lock = write_processed(tmp_path, two_dataset_corpus())
 
     report = train_baseline(
         processed,
         tmp_path / "artifacts",
         tmp_path / "reports",
         BaselineConfig(n_features=2**16),
+        lock_path=lock,
+        identifiers_path=_identifiers(tmp_path, "reuters"),
     )
 
     artifact = resolve(tmp_path / "artifacts", "baseline")
@@ -169,8 +172,160 @@ def test_training_writes_an_artifact_a_registry_entry_and_a_report(tmp_path: Pat
     thresholds = json.loads((artifact / "thresholds.json").read_text(encoding="utf-8"))
     assert thresholds["t_low"] < thresholds["t_high"]
     assert report["version"] == artifact.name
+    assert report["version"].startswith("v2-")
     assert report["metrics"]["test"]["calibrated"]["macro_f1"] > 0.95
-    assert set(report["metrics"]["test_by_dataset"]) == {"synthetic"}
+    assert set(report["metrics"]["test_by_dataset"]) == {"alpha", "beta"}
     assert len(report["top_features"]["unreliable"]) > 0
-    assert (tmp_path / "reports" / "baseline_v1.json").exists()
-    assert "macro-F1" in (tmp_path / "reports" / "baseline_v1.md").read_text(encoding="utf-8")
+    assert report["leak_probe"] == {"flagged": [], "unnamed_buckets": 0}
+    # Both datasets are written by the same generator, so the text does not give the dataset away.
+    assert report["origin_probe"]["accuracy"] < 0.75
+    assert set(report["origin_probe"]["per_label"]) == {"0", "1"}
+    assert (tmp_path / "reports" / "baseline_v2.json").exists()
+    markdown = (tmp_path / "reports" / "baseline_v2.md").read_text(encoding="utf-8")
+    assert "macro-F1" in markdown
+    assert "## Leak probes" in markdown
+
+
+def test_training_never_opens_the_test_split_when_a_top_feature_names_a_source(
+    tmp_path: Path,
+) -> None:
+    processed, lock = write_processed(tmp_path, two_dataset_corpus())
+    (processed / "splits" / "test.parquet").unlink()  # any read of the test split would now fail
+
+    report = train_baseline(
+        processed,
+        tmp_path / "artifacts",
+        tmp_path / "reports",
+        BaselineConfig(n_features=2**16),
+        lock_path=lock,
+        identifiers_path=_identifiers(tmp_path, "shocking"),
+    )
+
+    assert "shocking" in report["leak_probe"]["flagged"]
+    assert "test" not in report["metrics"]
+    assert "bands_on_test" not in report
+    assert resolve(tmp_path / "artifacts", "baseline") is None
+    markdown = (tmp_path / "reports" / "baseline_v2.md").read_text(encoding="utf-8")
+    assert "`shocking`" in markdown
+    assert "not scored" in markdown
+
+
+def test_training_on_a_single_dataset_has_no_origin_probe(tmp_path: Path) -> None:
+    processed, lock = write_processed(tmp_path, make_corpus(400, seed=2))
+
+    report = train_baseline(
+        processed,
+        tmp_path / "artifacts",
+        tmp_path / "reports",
+        BaselineConfig(n_features=2**16),
+        lock_path=lock,
+        identifiers_path=_identifiers(tmp_path, "reuters"),
+    )
+
+    assert report["origin_probe"] is None
+    assert set(report["metrics"]["test_by_dataset"]) == {"synthetic"}
+
+
+def test_a_bucket_is_named_by_an_n_gram_seen_once_in_the_naming_sample(
+    model: BaselineModel, corpus: tuple[list[str], np.ndarray, list[str], np.ndarray]
+) -> None:
+    train_texts, _, _, _ = corpus
+    strongest = model.top_features(train_texts, k=1)["unreliable"][0]
+    one_text = next(text for text in train_texts if analyze(text).count(strongest) == 1)
+
+    assert model.top_features([one_text], k=1)["unreliable"] == [strongest]
+
+
+# ---------------------------------------------------------------- character n-grams
+
+
+def test_char_wb_analysis_adds_3_to_5_character_grams_inside_word_boundaries() -> None:
+    assert analyze_chars("Go now") == [
+        " go",
+        "go ",
+        " go ",
+        " no",
+        "now",
+        "ow ",
+        " now",
+        "now ",
+        " now ",
+    ]
+
+
+def test_character_n_grams_let_an_unseen_word_form_change_the_score(
+    corpus: tuple[list[str], np.ndarray, list[str], np.ndarray],
+) -> None:
+    train_texts, train_y, _, _ = corpus
+    words_only = BaselineModel(BaselineConfig(n_features=2**16)).fit(train_texts, train_y)
+    with_chars = BaselineModel(BaselineConfig(n_features=2**16, char_ngrams=True)).fit(
+        train_texts, train_y
+    )
+    unseen_form = NEUTRAL_TEXT + " shockingly"
+
+    np.testing.assert_allclose(
+        words_only.decision_function([unseen_form]), words_only.decision_function([NEUTRAL_TEXT])
+    )
+    assert (
+        with_chars.decision_function([unseen_form])[0]
+        > with_chars.decision_function([NEUTRAL_TEXT])[0] + 0.01
+    )
+
+
+def test_a_model_with_character_n_grams_survives_save_and_load(
+    corpus: tuple[list[str], np.ndarray, list[str], np.ndarray], tmp_path: Path
+) -> None:
+    train_texts, train_y, texts, _ = corpus
+    fitted = BaselineModel(BaselineConfig(n_features=2**16, char_ngrams=True)).fit(
+        train_texts, train_y
+    )
+
+    fitted.save(tmp_path / "artifact", {"version": "test-chars"})
+    loaded = BaselineModel.load(tmp_path / "artifact")
+
+    np.testing.assert_array_equal(loaded.predict_raw(texts), fitted.predict_raw(texts))
+
+
+def test_the_ablation_compares_both_feature_sets_on_val_and_writes_a_report(
+    tmp_path: Path,
+) -> None:
+    processed, lock = write_processed(tmp_path, two_dataset_corpus())
+
+    result = ablation_char_ngrams(
+        processed,
+        tmp_path / "reports",
+        BaselineConfig(n_features=2**16),
+        sample_rows=120,
+        lock_path=lock,
+    )
+
+    assert [variant["name"] for variant in result["variants"]] == [
+        "word 1-2",
+        "word 1-2 + char_wb 3-5",
+    ]
+    for variant in result["variants"]:
+        assert variant["val"]["macro_f1"] > 0.9
+        assert variant["val"]["roc_auc"] > 0.9
+        assert variant["peak_memory_mb"] >= 0
+    assert result["rows"] == {"train_sample": 120, "train": 240, "val": 50}
+    # Both feature sets separate this corpus, so the gain is far below the 0.01 needed to adopt.
+    assert result["adopt_char_ngrams"] is False
+    markdown = (tmp_path / "reports" / "ablation_char_ngrams.md").read_text(encoding="utf-8")
+    assert "word 1-2 + char_wb 3-5" in markdown
+    assert "Decision" in markdown
+    assert not (tmp_path / "artifacts").exists()
+
+
+def test_the_ablation_sample_keeps_the_label_and_dataset_mix_of_train() -> None:
+    frame = make_corpus(400, seed=2)  # labels alternate
+    frame["dataset"] = np.where(np.arange(400) < 300, "alpha", "beta")  # 3 of 4 rows are alpha
+
+    chosen = stratified_positions(frame[["dataset", "label"]], 200, seed=13)
+
+    sample = frame.iloc[chosen]
+    assert len(set(chosen.tolist())) == 200
+    assert sample["dataset"].value_counts().to_dict() == {"alpha": 150, "beta": 50}
+    assert sample["label"].value_counts().to_dict() == {0: 100, 1: 100}
+    # A size the groups cannot share evenly is still met exactly.
+    assert len(stratified_positions(frame[["dataset", "label"]], 101, seed=13)) == 101
+    assert len(stratified_positions(frame[["dataset", "label"]], 5000, seed=13)) == 400

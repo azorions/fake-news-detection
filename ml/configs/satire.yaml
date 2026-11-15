@@ -1,0 +1,6 @@
+# Satire headline scorer: the same model family as the baseline, on headlines only.
+n_features: 262144    # 2**18 hash buckets
+max_tokens: 64        # a headline, or the first 40 words of a text without one
+min_df: 2
+C: 2.0
+max_iter: 300

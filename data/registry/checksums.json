@@ -1,4 +1,12 @@
 {
+  "buzzfeed_webis": {
+    "articles.zip": "e5c1edefb31b2094f01a23c53a49fc644ef8d51cabadaab0e42af22f1d82bb76"
+  },
+  "constraint": {
+    "Constraint_Train.csv": "441f3985bb76eb69d1e488cf292f80add96c4dddfa43ba7c060889607837ddce",
+    "Constraint_Val.csv": "c610931d0641fe1d9b9495c453f99ae7aa45bf294c7db6333ec84ecebb0b6c3c",
+    "english_test_with_labels.csv": "7152fc681884a22013218c5dd9a73c6fd99d4b084705723e1e49d18c97ca8281"
+  },
   "fakenewsnet": {
     "gossipcop_fake.csv": "c6932bffadb1230bc61c66bb2ca298f4ef28ce849d268313ad2eed41d18d4c99",
     "gossipcop_real.csv": "d721e9a8b7e660da05c089691743c33fecb25367074e936b5fab3d85cdcbe79f",
@@ -12,6 +20,9 @@
     "test2.tsv": "a374044e6f73700f749a1bdaf71174356e437c7e6f7ecd4feb52d2fa82820442",
     "train2.tsv": "63adafa9360f43788fb16499871ff7665143c554fc8a3cce1af846233ce53f07",
     "val2.tsv": "45fac5748e2da08898a4fda0cb02e4c107990a0111b4a6c3aed1956b38a309a2"
+  },
+  "satire_headlines": {
+    "Sarcasm_Headlines_Dataset.json": "ab0faf86c2dbbef47a95080bc7601981f3ea9dc48ccca73382f90b9a56e02b49"
   },
   "welfake": {
     "WELFake_Dataset.csv": "665331424230fc452e9482c3547a6a199a2c29745ade8d236950d1d105223773"

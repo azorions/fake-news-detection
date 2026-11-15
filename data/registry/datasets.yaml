@@ -55,3 +55,43 @@ datasets:
       fact-checkers' justifications added by LIAR-PLUS (Alhindi et al., 2018). The original LIAR zip
       on cs.ucsb.edu refuses scripted downloads (HTTP 403). The speaker "credit history" columns
       include each statement's own rating, so they are never used as features.
+
+  # ---- Evaluation only. `role: external` and `role: satire` datasets have no entry in
+  # ---- fnd_ml.data.loaders.LOADERS, so `fnd data build` can never put them into training data.
+
+  constraint:
+    role: external
+    license: MIT (repository license)
+    homepage: https://github.com/diptamath/covid_fake_news
+    files:
+      - url: https://raw.githubusercontent.com/diptamath/covid_fake_news/main/data/Constraint_Train.csv
+        filename: Constraint_Train.csv
+      - url: https://raw.githubusercontent.com/diptamath/covid_fake_news/main/data/Constraint_Val.csv
+        filename: Constraint_Val.csv
+      - url: https://raw.githubusercontent.com/diptamath/covid_fake_news/main/data/english_test_with_labels.csv
+        filename: english_test_with_labels.csv
+    notes: >
+      Constraint@AAAI-2021 COVID-19 fake news (Patwa et al.): about 10.7k social media posts from
+      2020 labelled real or fake. A different topic, period and text type from all training data.
+
+  buzzfeed_webis:
+    role: external
+    license: CC BY 4.0
+    homepage: https://zenodo.org/records/1239675
+    files:
+      - url: https://zenodo.org/records/1239675/files/articles.zip?download=1
+        filename: articles.zip
+    notes: >
+      BuzzFeed-Webis Fake News Corpus 2016 (Potthast et al.): 1,627 articles from nine publishers
+      in the week before the 2016 US election, each rated by BuzzFeed journalists.
+
+  satire_headlines:
+    role: satire
+    license: No license file in the repository; cite Misra and Arora (2019), see homepage
+    homepage: https://github.com/rishabhmisra/News-Headlines-Dataset-For-Sarcasm-Detection
+    files:
+      - url: https://raw.githubusercontent.com/rishabhmisra/News-Headlines-Dataset-For-Sarcasm-Detection/master/Sarcasm_Headlines_Dataset.json
+        filename: Sarcasm_Headlines_Dataset.json
+    notes: >
+      About 26.7k headlines: The Onion (satire) and HuffPost (news). Trains the satire scorer only.
+      Two publishers, so the score partly reflects their house styles.

@@ -14,8 +14,9 @@ and measured results are in [docs/plans/](docs/plans/).
 ## Setup
 
 ```
-uv sync                 # API, data pipeline, baseline model, dev tools
-uv sync --extra train   # adds PyTorch for transformer training
+uv sync                   # API, data pipeline, baseline model, dev tools
+uv sync --extra classic   # adds XGBoost (comparison model) and matplotlib (report plots)
+uv sync --extra train     # adds classic + PyTorch, transformers and ONNX export (about 2.5 GB)
 ```
 
 ## Common tasks

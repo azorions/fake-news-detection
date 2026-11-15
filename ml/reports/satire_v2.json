@@ -1,0 +1,126 @@
+{
+  "model": "satire",
+  "version": "v2-89b967c5",
+  "config": {
+    "n_features": 262144,
+    "max_tokens": 64,
+    "min_df": 2,
+    "C": 2.0,
+    "max_iter": 300,
+    "char_ngrams": false
+  },
+  "data_manifest_sha256": "b02837724d857df5685684c3fff4aaa22fef7a3d03be4a9bf26163f7efe10a78",
+  "rows": {
+    "train": 22778,
+    "calib": 2859,
+    "test": 2869
+  },
+  "publishers": {
+    "huffingtonpost.com": {
+      "rows": 14914,
+      "satire_share": 0.0
+    },
+    "theonion.com": {
+      "rows": 13592,
+      "satire_share": 1.0
+    }
+  },
+  "metrics": {
+    "calib": {
+      "raw": {
+        "n": 2859,
+        "unreliable_share": 0.482,
+        "macro_f1": 0.8471,
+        "roc_auc": 0.9255,
+        "pr_auc": 0.9191,
+        "brier": 0.1141,
+        "ece": 0.0711
+      },
+      "calibrated": {
+        "n": 2859,
+        "unreliable_share": 0.482,
+        "macro_f1": 0.8508,
+        "roc_auc": 0.928,
+        "pr_auc": 0.9137,
+        "brier": 0.1058,
+        "ece": 0.0011
+      }
+    },
+    "test": {
+      "raw": {
+        "n": 2869,
+        "unreliable_share": 0.4779,
+        "macro_f1": 0.8493,
+        "roc_auc": 0.9229,
+        "pr_auc": 0.9133,
+        "brier": 0.1148,
+        "ece": 0.0606
+      },
+      "calibrated": {
+        "n": 2869,
+        "unreliable_share": 0.4779,
+        "macro_f1": 0.8425,
+        "roc_auc": 0.92,
+        "pr_auc": 0.9012,
+        "brier": 0.1118,
+        "ece": 0.0271
+      }
+    }
+  },
+  "top_features": {
+    "satire": [
+      "nation",
+      "area",
+      "report",
+      "man",
+      "local",
+      "fucking",
+      "onion",
+      "announces",
+      "fuck",
+      "introduces",
+      "clearly",
+      "guy",
+      "wondering",
+      "study",
+      "only",
+      "shit",
+      "the onion",
+      "few",
+      "god",
+      "unveils",
+      "audience",
+      "enough",
+      "coworker",
+      "kavanaugh",
+      "bar"
+    ],
+    "not_satire": [
+      "the",
+      "is",
+      "and",
+      "an",
+      "trump",
+      "why",
+      "my",
+      "your",
+      "watch",
+      "are",
+      "california",
+      "how",
+      "our",
+      "says he",
+      "donald",
+      "these",
+      "how to",
+      "cops",
+      "accused",
+      "this",
+      "tips",
+      "huffpost",
+      "reportedly",
+      "china",
+      "lessons"
+    ]
+  }
+}

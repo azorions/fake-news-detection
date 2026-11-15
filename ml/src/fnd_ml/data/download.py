@@ -45,6 +45,7 @@ class DatasetEntry:
     homepage: str
     files: tuple[RemoteFile, ...]
     notes: str = ""
+    role: str = "train"  # "train", "external" (test only) or "satire" (satire scorer only)
 
 
 def load_registry(path: Path) -> dict[str, DatasetEntry]:
@@ -56,6 +57,7 @@ def load_registry(path: Path) -> dict[str, DatasetEntry]:
             homepage=str(spec["homepage"]),
             files=tuple(RemoteFile(url=f["url"], filename=f["filename"]) for f in spec["files"]),
             notes=str(spec.get("notes", "")).strip(),
+            role=str(spec.get("role", "train")),
         )
         for name, spec in raw["datasets"].items()
     }

@@ -7,6 +7,8 @@ requires-python = ">=3.12,<3.13"
 dependencies = ["fnd-ml", "fnd-api"]
 
 [project.optional-dependencies]
+# Comparison models (XGBoost) and report plots. Not needed to run the API.
+classic = ["fnd-ml[classic]"]
 # Training stack (PyTorch). Not needed to run the API.
 train = ["fnd-ml[train]"]
 
@@ -23,10 +25,13 @@ dev = [
     "poethepoet>=0.30",
     "pandas-stubs",
     "types-pyyaml",
+    "types-psutil",
 ]
 
 [tool.uv]
 package = false
+# Keep downloads on this drive: the PyTorch wheels alone are 2.4 GB.
+cache-dir = ".uv-cache"
 environments = ["sys_platform == 'win32'", "sys_platform == 'linux'"]
 
 [tool.uv.workspace]
