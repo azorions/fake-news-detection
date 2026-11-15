@@ -26,6 +26,7 @@ DEFAULT_REGISTRY = Path("data/registry/datasets.yaml")
 DEFAULT_RAW_DIR = Path("data/raw")
 BUILD_RAM_GB = 3.0  # the whole corpus is held in memory several times over while it is cleaned
 TRAIN_RAM_GB = 3.0  # the TF-IDF matrix of the train split, plus the solver's working copies
+SATIRE_RAM_GB = 1.0  # headlines only: about 28,000 short texts
 
 
 def _check_memory(gb: float, what: str, force: bool) -> None:
@@ -223,3 +224,30 @@ def train_xgb_command(
     typer.echo(f"version {report['version']} ({report['trees']} trees)")
     typer.echo(json.dumps(report["metrics"]["test"], indent=2))
     typer.echo(json.dumps(report["thresholds"]))
+
+
+@train_app.command("satire")
+def train_satire_command(
+    processed_dir: ProcessedOption = Path("data/processed"),
+    artifacts_dir: ArtifactsOption = Path("ml/artifacts"),
+    reports_dir: ReportsOption = Path("ml/reports"),
+    config: Annotated[Path, typer.Option(help="Satire scorer config file.")] = Path(
+        "ml/configs/satire.yaml"
+    ),
+    force: ForceOption = False,
+) -> None:
+    """Train the satire headline scorer on the satire evaluation set (80/10/10 by text hash)."""
+    import yaml
+
+    from fnd_ml.data.build import ManifestMismatch
+    from fnd_ml.models.baseline import BaselineConfig
+    from fnd_ml.models.satire import train_satire
+
+    settings = BaselineConfig(**yaml.safe_load(config.read_text(encoding="utf-8")))
+    _check_memory(SATIRE_RAM_GB, "Training the satire scorer", force)
+    try:
+        report = train_satire(processed_dir, artifacts_dir, reports_dir, settings)
+    except ManifestMismatch as error:
+        raise _frozen_or_exit(error) from error
+    typer.echo(f"version {report['version']}")
+    typer.echo(json.dumps(report["metrics"]["test"], indent=2))

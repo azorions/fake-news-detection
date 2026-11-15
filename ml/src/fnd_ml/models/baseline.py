@@ -192,7 +192,7 @@ class BaselineModel:
 
     # ------------------------------------------------------------ persistence
 
-    def save(self, directory: Path, metadata: dict[str, Any]) -> None:
+    def save(self, directory: Path, metadata: dict[str, Any], kind: str = "baseline") -> None:
         if self.coef_ is None or self.idf_ is None:
             raise RuntimeError("model is not fitted")
         directory.mkdir(parents=True, exist_ok=True)
@@ -205,7 +205,7 @@ class BaselineModel:
             calib_y=empty if self.calib_y_ is None else self.calib_y_,
         )
         document = {
-            "kind": "baseline",
+            "kind": kind,
             "config": asdict(self.config),
             "intercept": self.intercept_,
             "calibrated": self.calib_x_ is not None,
