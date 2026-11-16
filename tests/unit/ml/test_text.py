@@ -182,6 +182,9 @@ def test_label_convention_is_one_for_unreliable() -> None:
             ["SiriusXM", "125", "Daily"],
         ),
         ("SiriusXM host Alex Marlow asked about it", ["SiriusXM", "Marlow"]),
+        # M2 leak-probe round: Breitbart prints its editor's first name in capitals
+        ("critics of Senior Editor MILO's upcoming book Dangerous", ["MILO"]),
+        ("the event will feature both MILO and Shkreli at UC Davis", ["MILO"]),
     ],
 )
 def test_dataset_specific_artifacts_are_removed(text: str, leaked: list[str]) -> None:
@@ -203,6 +206,8 @@ def test_dataset_specific_artifacts_are_removed(text: str, leaked: list[str]) ->
         "Share this view or not, the photo shows the scale of the flood.",
         "She is a writer and he is the editor of a small magazine",
         "You can follow the money. Follow him, said the guide.",
+        "Milo Ventimiglia and Milo Yiannopoulos are two different people.",
+        "MILOSEVIC ON TRIAL, the banner said, and SMILODON was a cat.",
     ],
 )
 def test_ordinary_sentences_survive_scrubbing(text: str) -> None:

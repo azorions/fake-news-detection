@@ -104,6 +104,9 @@ _OUTLETS = (
     r"|(?i:sputnik)(?: International| news)?|RT(?: International)?|21st Century Wire|21WIRE"
     r"|Getty Images|Daily Caller|TRUNEWS|Infowars|WND"
     r"|SiriusXM(?: Patriot(?: Channel)?(?: \d+)?)?|Alex Marlow"
+    # Breitbart prints its editor's first name in capitals ("Senior Editor MILO"): 71 of the 72 train
+    # rows with that spelling are Breitbart's. "Milo" in ordinary case is spread like the labels.
+    r"|MILO"
 )
 
 _ARTIFACT_PATTERNS: tuple[re.Pattern[str], ...] = (
