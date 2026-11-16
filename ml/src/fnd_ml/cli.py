@@ -27,6 +27,7 @@ DEFAULT_RAW_DIR = Path("data/raw")
 BUILD_RAM_GB = 3.0  # the whole corpus is held in memory several times over while it is cleaned
 TRAIN_RAM_GB = 3.0  # the TF-IDF matrix of the train split, plus the solver's working copies
 SATIRE_RAM_GB = 1.0  # headlines only: about 28,000 short texts
+TOPICS_RAM_GB = 3.0  # PyTorch, the embedding model and the corpus texts
 
 
 def _check_memory(gb: float, what: str, force: bool) -> None:
@@ -108,6 +109,27 @@ def data_freeze(
 
     digest = write_lock(processed_dir, lock)
     typer.echo(f"frozen: manifest sha256 {digest} -> {lock}")
+
+
+@data_app.command("topics")
+def data_topics(
+    processed_dir: Annotated[Path, typer.Option(help="Output of `fnd data build`.")] = Path(
+        "data/processed"
+    ),
+    k: Annotated[int, typer.Option(help="Number of topic groups.")] = 50,
+    seed: Annotated[int, typer.Option(help="Clustering seed.")] = 13,
+    force: Annotated[bool, typer.Option(help="Run even when free memory looks too low.")] = False,
+) -> None:
+    """Give every corpus text a topic group (k-means over sentence embeddings; needs PyTorch)."""
+    from fnd_ml.data.topics import write_topics
+
+    _check_memory(TOPICS_RAM_GB, "Embedding the corpus", force)
+    summary = write_topics(processed_dir, k=k, seed=seed)
+    sizes = sorted((topic["size"] for topic in summary["topics"]), reverse=True)
+    typer.echo(
+        f"{summary['k']} topics over {summary['rows']} texts; largest "
+        f"{summary['largest_topic_share']:.1%}, smallest {sizes[-1]} texts"
+    )
 
 
 @data_app.command("probe")
