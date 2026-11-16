@@ -17,5 +17,7 @@ def test_api_imports_without_training_packages() -> None:
         "heavy = ('torch', 'transformers', 'xgboost', 'matplotlib')\n"
         "print(','.join(name for name in heavy if name in sys.modules))\n"
     )
-    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
+    result = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True
+    )
     assert result.stdout.strip() == ""
