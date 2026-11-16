@@ -164,6 +164,36 @@ def test_training_lowers_the_loss_and_keeps_the_best_model(
     assert reloaded == pytest.approx(summary["best_val_macro_f1"])
 
 
+def test_a_checkpoint_stored_in_half_precision_is_trained_in_full_precision(
+    config: TrainConfig, data: tuple[Path, Path], tiny_model: Path, tmp_path: Path
+) -> None:
+    # The published DeBERTa-v3 weights are float16 on disk, and transformers 5 loads a model in
+    # the precision it was saved in unless told otherwise.
+    import torch
+    import transformers
+
+    processed, lock = data
+    half = tmp_path / "half"
+    transformers.AutoModel.from_pretrained(tiny_model).half().save_pretrained(half)
+    transformers.AutoTokenizer.from_pretrained(tiny_model).save_pretrained(half)
+    run_dir = tmp_path / "run"
+
+    train(
+        replace(config, model_name=str(half), eval_every_steps=2),
+        processed,
+        run_dir,
+        max_steps=2,
+        lock_path=lock,
+    )
+
+    state = torch.load(run_dir / "checkpoint.pt", weights_only=True)["model"]
+    assert {tensor.dtype for tensor in state.values() if tensor.is_floating_point()} == {
+        torch.float32
+    }
+    best = transformers.AutoModelForSequenceClassification.from_pretrained(run_dir / "best")
+    assert best.dtype == torch.float32
+
+
 def test_resume_matches_an_uninterrupted_run(
     config: TrainConfig, data: tuple[Path, Path], tmp_path: Path
 ) -> None:

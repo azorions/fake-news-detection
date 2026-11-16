@@ -41,7 +41,8 @@ def embed_texts(
 
     target = device or ("cuda" if torch.cuda.is_available() else "cpu")
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModel.from_pretrained(model_name).to(target).eval()
+    # float32 by name: transformers would otherwise use the precision the weights were saved in.
+    model = AutoModel.from_pretrained(model_name, dtype=torch.float32).to(target).eval()
 
     # Longest first: a batch is padded only to its own longest text, and a batch that does not
     # fit in memory fails at the start instead of after most of the work.

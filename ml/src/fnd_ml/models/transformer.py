@@ -365,6 +365,9 @@ def _new_learner(
         num_labels=2,
         id2label={0: "reliable", 1: "unreliable"},
         label2id={"reliable": 0, "unreliable": 1},
+        # Asked for by name: the published weights are float16 on disk, and without this the
+        # model would be loaded, trained and saved in half precision.
+        dtype=torch.float32,
     ).to(device)
 
     no_decay = ("bias", "LayerNorm.weight")
@@ -909,12 +912,14 @@ def predict_logits(
 
     ``model_dir`` is a ``best/`` folder: model, tokenizer and ``input_config.json``.
     """
+    import torch
     from transformers import AutoModelForSequenceClassification
 
     spec = InputSpec(**json.loads((model_dir / INPUT_CONFIG_NAME).read_text(encoding="utf-8")))
     tokens = encode_articles(_load_tokenizer(str(model_dir)), _frame_articles(frame), spec)
     target = _device(device)
-    model = AutoModelForSequenceClassification.from_pretrained(model_dir).to(target)
+    loaded = AutoModelForSequenceClassification.from_pretrained(model_dir, dtype=torch.float32)
+    model = loaded.to(target)
     return _margins(model, tokens, spec.pad_id, target, batch_size, use_amp=False)
 
 
