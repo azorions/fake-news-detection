@@ -203,11 +203,25 @@ def model_input(title: str | None, text: str) -> tuple[str, list[int]]:
     characters that come from the title or the separator.
     """
     body, mapping = remove_spans(text, find_artifact_spans(text))
-    clean_title = scrub_text(title).strip(" -|:\n") if title else ""
+    clean_title = _scrub_title(title)
     if not clean_title:
         return body, mapping
     prefix = clean_title + "\n\n"
     return prefix + body, [-1] * len(prefix) + mapping
+
+
+def _scrub_title(title: str | None) -> str:
+    """The scrubbed title, without the separator a removed outlet name leaves; ``""`` if none."""
+    return scrub_text(title).strip(" -|:\n") if title else ""
+
+
+def transformer_parts(title: str | None, text: str) -> tuple[str, str]:
+    """The scrubbed title (``""`` when there is none) and the scrubbed body, kept apart.
+
+    The transformer reads them as two segments. They are the two halves of ``model_input``: joined
+    by a blank line they give the same string, so every model family reads the same words.
+    """
+    return _scrub_title(title), scrub_text(text)
 
 
 # ---------------------------------------------------------------- hashing

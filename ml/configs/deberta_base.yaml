@@ -1,0 +1,17 @@
+# The model that is served: DeBERTa-v3-base on the full 512-token window.
+model_name: microsoft/deberta-v3-base
+max_length: 512             # tokens per article: [CLS] title [SEP] body [SEP]
+max_title_tokens: 64
+head_share: 0.75            # the body keeps the first 75% and the last 25% of its room
+lr: 2.0e-5
+weight_decay: 0.01
+epochs: 3
+batch_size: 8               # what fits an 8 GB card at 512 tokens
+grad_accum: 2               # optimizer step every 2 batches: effective batch 16
+warmup_share: 0.10
+eval_every_steps: 1000      # val macro-F1; the best step is kept in best/
+checkpoint_every_steps: 500
+patience: 3                 # evaluations without a better val macro-F1 before stopping
+balance: dataset_label      # both labels equally often inside each dataset
+amp: auto                   # mixed precision only if it is at least 15% faster and stays finite
+seed: 13

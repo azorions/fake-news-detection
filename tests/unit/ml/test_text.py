@@ -12,6 +12,7 @@ from fnd_ml.common.text import (
     remove_spans,
     scrub_text,
     text_hash,
+    transformer_parts,
 )
 
 # ---------------------------------------------------------------- normalize_text
@@ -212,3 +213,21 @@ def test_dataset_specific_artifacts_are_removed(text: str, leaked: list[str]) ->
 )
 def test_ordinary_sentences_survive_scrubbing(text: str) -> None:
     assert scrub_text(text) == text
+
+
+def test_transformer_parts_scrubs_title_and_body_separately() -> None:
+    title, body = transformer_parts("Markets fall - ", "LONDON (Reuters) - Shares fell on Monday.")
+
+    assert title == "Markets fall"
+    assert body == "Shares fell on Monday."
+
+
+def test_transformer_parts_without_a_title() -> None:
+    assert transformer_parts(None, "Shares fell.") == ("", "Shares fell.")
+    assert transformer_parts(" - ", "Shares fell.") == ("", "Shares fell.")
+
+
+def test_transformer_parts_are_the_two_halves_of_the_model_input() -> None:
+    title, text = "Breitbart: Markets fall", "Posted on May 3, 2016 by Jo Doe Shares fell."
+
+    assert "\n\n".join(transformer_parts(title, text)) == model_input(title, text)[0]

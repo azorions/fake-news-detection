@@ -28,6 +28,7 @@ BUILD_RAM_GB = 3.0  # the whole corpus is held in memory several times over whil
 TRAIN_RAM_GB = 3.0  # the TF-IDF matrix of the train split, plus the solver's working copies
 SATIRE_RAM_GB = 1.0  # headlines only: about 28,000 short texts
 TOPICS_RAM_GB = 3.0  # PyTorch, the embedding model and the corpus texts
+TRANSFORMER_RAM_GB = 4.0  # PyTorch with CUDA, the model and the token ids of the train split
 
 
 def _check_memory(gb: float, what: str, force: bool) -> None:
@@ -273,3 +274,56 @@ def train_satire_command(
         raise _frozen_or_exit(error) from error
     typer.echo(f"version {report['version']}")
     typer.echo(json.dumps(report["metrics"]["test"], indent=2))
+
+
+@train_app.command("transformer")
+def train_transformer_command(
+    config: Annotated[Path, typer.Option(help="Training config file.")] = Path(
+        "ml/configs/deberta_base.yaml"
+    ),
+    processed_dir: ProcessedOption = Path("data/processed"),
+    run_dir: Annotated[
+        Path | None,
+        typer.Option(help="Run folder: checkpoint, best model, log. Default: ml/runs/<config>."),
+    ] = None,
+    resume: Annotated[
+        bool, typer.Option(help="Continue from the run folder's last complete checkpoint.")
+    ] = False,
+    benchmark: Annotated[
+        bool, typer.Option(help="Only time full against mixed precision, then stop.")
+    ] = False,
+    max_steps: Annotated[
+        int | None, typer.Option(help="Stop after this many optimizer steps.")
+    ] = None,
+    force: ForceOption = False,
+) -> None:
+    """Fine-tune the transformer on the frozen splits (needs the `train` extra; slow without a GPU).
+
+    With --benchmark the timing is also saved in the run folder, and the run that follows trains
+    in the precision it chose.
+    """
+    from fnd_ml.common import resources
+    from fnd_ml.data.build import ManifestMismatch
+    from fnd_ml.models.transformer import (
+        PRECISION_NAME,
+        RunFolderError,
+        TrainConfig,
+        benchmark_precision,
+        train,
+    )
+
+    settings = TrainConfig.from_yaml(config)
+    target = run_dir or Path("ml/runs") / config.stem
+    _check_memory(TRANSFORMER_RAM_GB, "Fine-tuning the transformer", force)
+    try:
+        with resources.stay_awake():
+            if benchmark:
+                text = json.dumps(benchmark_precision(settings, processed_dir), indent=2)
+                target.mkdir(parents=True, exist_ok=True)
+                (target / PRECISION_NAME).write_text(text + "\n", encoding="utf-8")
+                typer.echo(text)
+                return
+            summary = train(settings, processed_dir, target, resume=resume, max_steps=max_steps)
+    except (ManifestMismatch, RunFolderError) as error:
+        raise _frozen_or_exit(error) from error
+    typer.echo(json.dumps(summary, indent=2))
