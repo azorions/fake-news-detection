@@ -38,8 +38,9 @@ from numpy.typing import NDArray
 from sklearn.metrics import f1_score
 
 from fnd_ml.calibration.temperature import apply_temperature, fit_temperature
+from fnd_ml.common.resources import peak_ram_mb
 from fnd_ml.common.text import transformer_parts
-from fnd_ml.common.truncation import build_input
+from fnd_ml.common.truncation import InputSpec, pad_batch
 from fnd_ml.data.build import DEFAULT_LOCK, assert_frozen
 from fnd_ml.models.scorer import Fit, Scorer
 from fnd_ml.models.train_baseline import stratified_positions
@@ -175,18 +176,6 @@ def choose_amp(fp32: Mapping[str, Any], amp: Mapping[str, Any] | None) -> bool:
 
 
 @dataclass(frozen=True)
-class InputSpec:
-    """How an article becomes input ids. Saved with the model, so serving builds the same input."""
-
-    max_length: int
-    max_title_tokens: int
-    head_share: float
-    cls_id: int
-    sep_id: int
-    pad_id: int
-
-
-@dataclass(frozen=True)
 class Tokens:
     """Input ids of many articles in one flat array: row ``i`` is ``ids[offsets[i]:offsets[i+1]]``."""
 
@@ -264,15 +253,7 @@ def encode_articles(
         titles = backend.encode_batch([title for title, _ in pending], add_special_tokens=False)
         bodies = backend.encode_batch([body for _, body in pending], add_special_tokens=False)
         for title, body in zip(titles, bodies, strict=True):
-            ids, was_cut = build_input(
-                title.ids,
-                body.ids,
-                cls_id=spec.cls_id,
-                sep_id=spec.sep_id,
-                max_length=spec.max_length,
-                max_title=spec.max_title_tokens,
-                head_share=spec.head_share,
-            )
+            ids, was_cut = spec.build(title.ids, body.ids)
             rows.append(np.asarray(ids, dtype=np.int32))
             cut.append(was_cut)
         pending.clear()
@@ -391,13 +372,7 @@ def _batch(tokens: Tokens, rows: NDArray[np.int64], pad_id: int, device: str) ->
     """``input_ids`` and ``attention_mask`` of the rows, padded to the longest of them."""
     import torch
 
-    pieces = [tokens.row(int(row)) for row in rows]
-    width = max(len(piece) for piece in pieces)
-    input_ids = np.full((len(pieces), width), pad_id, dtype=np.int64)
-    mask = np.zeros((len(pieces), width), dtype=np.int64)
-    for index, piece in enumerate(pieces):
-        input_ids[index, : len(piece)] = piece
-        mask[index, : len(piece)] = 1
+    input_ids, mask = pad_batch([tokens.row(int(row)) for row in rows], pad_id)
     return torch.from_numpy(input_ids).to(device), torch.from_numpy(mask).to(device)
 
 
@@ -535,7 +510,13 @@ def _benchmark(config: TrainConfig, pad_id: int, split: _Split, steps: int) -> d
     fp32 = timings["fp32"]
     assert fp32 is not None
     use_amp = choose_amp(fp32, timings["amp"])
-    return {"device": device, "steps": steps, **timings, "use_amp": use_amp}
+    return {
+        "device": device,
+        "steps": steps,
+        **timings,
+        "use_amp": use_amp,
+        "peak_ram_mb": round(peak_ram_mb()),
+    }
 
 
 def benchmark_precision(
@@ -815,6 +796,7 @@ def _fit(
         "train_seconds": round(progress.train_seconds, 1),
         "device": learner.device,
         "amp": use_amp,
+        "peak_ram_mb": round(peak_ram_mb()),
         "train_rows": n,
         "val_rows": len(val.tokens),
         "truncated_share": {

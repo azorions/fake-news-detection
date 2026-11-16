@@ -28,7 +28,9 @@ BUILD_RAM_GB = 3.0  # the whole corpus is held in memory several times over whil
 TRAIN_RAM_GB = 3.0  # the TF-IDF matrix of the train split, plus the solver's working copies
 SATIRE_RAM_GB = 1.0  # headlines only: about 28,000 short texts
 TOPICS_RAM_GB = 3.0  # PyTorch, the embedding model and the corpus texts
-TRANSFORMER_RAM_GB = 4.0  # PyTorch with CUDA, the model and the token ids of the train split
+# Measured on the pilot: the training process held 2.0 GB at its peak (PyTorch with CUDA, the
+# model and the token ids of the train split).
+TRANSFORMER_RAM_GB = 2.5
 
 
 def _check_memory(gb: float, what: str, force: bool) -> None:
@@ -345,3 +347,28 @@ def calibrate_command(
     except ManifestMismatch as error:
         raise _frozen_or_exit(error) from error
     typer.echo(json.dumps(result, indent=2))
+
+
+@app.command("export")
+def export_command(
+    run: Annotated[Path, typer.Option(help="Run folder, already calibrated.")],
+    processed_dir: ProcessedOption = Path("data/processed"),
+    artifacts_dir: ArtifactsOption = Path("ml/artifacts"),
+    val_rows: Annotated[
+        int, typer.Option(help="Val rows on which the two files are compared.")
+    ] = 2000,
+    threads: Annotated[int, typer.Option(help="CPU threads, as the API will use.")] = 4,
+    force: ForceOption = False,
+) -> None:
+    """Export a calibrated run to ONNX, pick fp32 or int8, and register the served artifact."""
+    from fnd_ml.data.build import ManifestMismatch
+    from fnd_ml.export.pipeline import ExportError, export_run
+
+    _check_memory(TRANSFORMER_RAM_GB, "Exporting the transformer", force)
+    try:
+        metadata = export_run(run, processed_dir, artifacts_dir, val_rows=val_rows, threads=threads)
+    except (ManifestMismatch, ExportError) as error:
+        raise _frozen_or_exit(error) from error
+    typer.echo(json.dumps(metadata, indent=2))
+    for exception in metadata["gate_exceptions"]:
+        typer.echo(f"gate exception: {exception}")

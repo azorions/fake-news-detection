@@ -1,6 +1,6 @@
 import pytest
 
-from fnd_ml.common.truncation import build_input, head_tail
+from fnd_ml.common.truncation import InputSpec, build_input, head_tail, pad_batch
 
 
 def test_head_tail_keeps_both_ends() -> None:
@@ -73,3 +73,23 @@ def test_the_input_never_exceeds_max_length(title: int, body: int) -> None:
     room = 48 - 2 - (kept_title + 1 if kept_title else 0)
     assert cut == (title > 8 or body > room)
     assert ids.count(9) == min(body, room)
+
+
+def test_an_input_spec_builds_with_its_own_settings() -> None:
+    spec = InputSpec(
+        max_length=10, max_title_tokens=2, head_share=0.5, cls_id=1, sep_id=2, pad_id=0
+    )
+
+    ids, cut = spec.build([7, 7, 7], list(range(100, 120)))
+
+    # [CLS] 7 7 [SEP] leaves 5 for the body: 2 from its start, 3 from its end, then [SEP]
+    assert ids == [1, 7, 7, 2, 100, 101, 117, 118, 119, 2]
+    assert cut
+
+
+def test_pad_batch_pads_to_the_longest_row_and_masks_the_padding() -> None:
+    input_ids, mask = pad_batch([[5, 6, 7], [8]], pad_id=0)
+
+    assert input_ids.tolist() == [[5, 6, 7], [8, 0, 0]]
+    assert mask.tolist() == [[1, 1, 1], [1, 0, 0]]
+    assert input_ids.dtype == mask.dtype == "int64"

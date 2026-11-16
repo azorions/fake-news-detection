@@ -333,5 +333,5 @@ def test_the_command_stops_with_a_clear_message_when_memory_is_short(
     result = CliRunner().invoke(app, [*arguments, "--run-dir", str(run_dir)])
 
     assert result.exit_code == 2
-    assert "needs about 4.0 GB" in result.output
+    assert "needs about 2.5 GB" in result.output
     assert not run_dir.exists()

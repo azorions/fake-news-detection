@@ -8,6 +8,10 @@ ends and drops the middle. The title gets its own, bounded segment in front.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
+
+import numpy as np
+from numpy.typing import NDArray
 
 
 def head_tail(
@@ -48,3 +52,40 @@ def build_input(
     prefix = [cls_id, *title, sep_id] if title else [cls_id]
     body, body_cut = head_tail(body_ids, max_length - len(prefix) - 1, head_share)
     return [*prefix, *body, sep_id], body_cut or len(title_ids) > max_title
+
+
+@dataclass(frozen=True)
+class InputSpec:
+    """How an article becomes input ids. Saved with the model, so serving builds the same input."""
+
+    max_length: int
+    max_title_tokens: int
+    head_share: float
+    cls_id: int
+    sep_id: int
+    pad_id: int
+
+    def build(self, title_ids: Sequence[int], body_ids: Sequence[int]) -> tuple[list[int], bool]:
+        """``build_input`` with this model's settings."""
+        return build_input(
+            title_ids,
+            body_ids,
+            cls_id=self.cls_id,
+            sep_id=self.sep_id,
+            max_length=self.max_length,
+            max_title=self.max_title_tokens,
+            head_share=self.head_share,
+        )
+
+
+def pad_batch(
+    rows: Sequence[Sequence[int] | NDArray[np.int32]], pad_id: int
+) -> tuple[NDArray[np.int64], NDArray[np.int64]]:
+    """``input_ids`` and ``attention_mask`` of the rows, padded to the longest of them."""
+    width = max(len(row) for row in rows)
+    input_ids = np.full((len(rows), width), pad_id, dtype=np.int64)
+    mask = np.zeros((len(rows), width), dtype=np.int64)
+    for index, row in enumerate(rows):
+        input_ids[index, : len(row)] = row
+        mask[index, : len(row)] = 1
+    return input_ids, mask
