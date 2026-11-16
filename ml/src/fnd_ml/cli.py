@@ -27,6 +27,8 @@ DEFAULT_RAW_DIR = Path("data/raw")
 BUILD_RAM_GB = 3.0  # the whole corpus is held in memory several times over while it is cleaned
 TRAIN_RAM_GB = 3.0  # the TF-IDF matrix of the train split, plus the solver's working copies
 SATIRE_RAM_GB = 1.0  # headlines only: about 28,000 short texts
+TOPICS_RAM_GB = 3.0  # PyTorch, the embedding model and the corpus texts
+TRANSFORMER_RAM_GB = 4.0  # PyTorch with CUDA, the model and the token ids of the train split
 
 
 def _check_memory(gb: float, what: str, force: bool) -> None:
@@ -108,6 +110,27 @@ def data_freeze(
 
     digest = write_lock(processed_dir, lock)
     typer.echo(f"frozen: manifest sha256 {digest} -> {lock}")
+
+
+@data_app.command("topics")
+def data_topics(
+    processed_dir: Annotated[Path, typer.Option(help="Output of `fnd data build`.")] = Path(
+        "data/processed"
+    ),
+    k: Annotated[int, typer.Option(help="Number of topic groups.")] = 50,
+    seed: Annotated[int, typer.Option(help="Clustering seed.")] = 13,
+    force: Annotated[bool, typer.Option(help="Run even when free memory looks too low.")] = False,
+) -> None:
+    """Give every corpus text a topic group (k-means over sentence embeddings; needs PyTorch)."""
+    from fnd_ml.data.topics import write_topics
+
+    _check_memory(TOPICS_RAM_GB, "Embedding the corpus", force)
+    summary = write_topics(processed_dir, k=k, seed=seed)
+    sizes = sorted((topic["size"] for topic in summary["topics"]), reverse=True)
+    typer.echo(
+        f"{summary['k']} topics over {summary['rows']} texts; largest "
+        f"{summary['largest_topic_share']:.1%}, smallest {sizes[-1]} texts"
+    )
 
 
 @data_app.command("probe")
@@ -251,3 +274,74 @@ def train_satire_command(
         raise _frozen_or_exit(error) from error
     typer.echo(f"version {report['version']}")
     typer.echo(json.dumps(report["metrics"]["test"], indent=2))
+
+
+@train_app.command("transformer")
+def train_transformer_command(
+    config: Annotated[Path, typer.Option(help="Training config file.")] = Path(
+        "ml/configs/deberta_base.yaml"
+    ),
+    processed_dir: ProcessedOption = Path("data/processed"),
+    run_dir: Annotated[
+        Path | None,
+        typer.Option(help="Run folder: checkpoint, best model, log. Default: ml/runs/<config>."),
+    ] = None,
+    resume: Annotated[
+        bool, typer.Option(help="Continue from the run folder's last complete checkpoint.")
+    ] = False,
+    benchmark: Annotated[
+        bool, typer.Option(help="Only time full against mixed precision, then stop.")
+    ] = False,
+    max_steps: Annotated[
+        int | None, typer.Option(help="Stop after this many optimizer steps.")
+    ] = None,
+    force: ForceOption = False,
+) -> None:
+    """Fine-tune the transformer on the frozen splits (needs the `train` extra; slow without a GPU).
+
+    With --benchmark the timing is also saved in the run folder, and the run that follows trains
+    in the precision it chose.
+    """
+    from fnd_ml.common import resources
+    from fnd_ml.data.build import ManifestMismatch
+    from fnd_ml.models.transformer import (
+        PRECISION_NAME,
+        RunFolderError,
+        TrainConfig,
+        benchmark_precision,
+        train,
+    )
+
+    settings = TrainConfig.from_yaml(config)
+    target = run_dir or Path("ml/runs") / config.stem
+    _check_memory(TRANSFORMER_RAM_GB, "Fine-tuning the transformer", force)
+    try:
+        with resources.stay_awake():
+            if benchmark:
+                text = json.dumps(benchmark_precision(settings, processed_dir), indent=2)
+                target.mkdir(parents=True, exist_ok=True)
+                (target / PRECISION_NAME).write_text(text + "\n", encoding="utf-8")
+                typer.echo(text)
+                return
+            summary = train(settings, processed_dir, target, resume=resume, max_steps=max_steps)
+    except (ManifestMismatch, RunFolderError) as error:
+        raise _frozen_or_exit(error) from error
+    typer.echo(json.dumps(summary, indent=2))
+
+
+@app.command("calibrate")
+def calibrate_command(
+    run: Annotated[Path, typer.Option(help="Run folder of `fnd train transformer`.")],
+    processed_dir: ProcessedOption = Path("data/processed"),
+    force: ForceOption = False,
+) -> None:
+    """Fit a fine-tuned run's temperature and verdict thresholds on the calib split."""
+    from fnd_ml.calibration.run import calibrate_run
+    from fnd_ml.data.build import ManifestMismatch
+
+    _check_memory(TRANSFORMER_RAM_GB, "Calibrating the transformer", force)
+    try:
+        result = calibrate_run(run, processed_dir)
+    except ManifestMismatch as error:
+        raise _frozen_or_exit(error) from error
+    typer.echo(json.dumps(result, indent=2))

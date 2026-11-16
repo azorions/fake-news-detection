@@ -50,3 +50,30 @@ def test_peak_memory_is_about_zero_when_nothing_is_allocated() -> None:
         pass
 
     assert 0 <= memory.peak_mb < 16
+
+
+def test_stay_awake_asks_for_the_whole_block_and_lets_go_afterwards(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[int] = []
+    monkeypatch.setattr(resources, "_set_execution_state", calls.append)
+
+    with resources.stay_awake():
+        assert calls == [0x80000001]  # continuous + system required
+
+    assert calls == [0x80000001, 0x80000000]
+
+
+def test_stay_awake_lets_go_when_the_command_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[int] = []
+    monkeypatch.setattr(resources, "_set_execution_state", calls.append)
+
+    with pytest.raises(RuntimeError), resources.stay_awake():
+        raise RuntimeError("the run died")
+
+    assert calls[-1] == 0x80000000
+
+
+def test_stay_awake_works_on_this_machine() -> None:
+    with resources.stay_awake():
+        pass

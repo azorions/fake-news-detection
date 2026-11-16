@@ -1,6 +1,6 @@
 {
   "model": "satire",
-  "version": "v2-89b967c5",
+  "version": "v2-4a308b50",
   "config": {
     "n_features": 262144,
     "max_tokens": 64,
@@ -9,7 +9,7 @@
     "max_iter": 300,
     "char_ngrams": false
   },
-  "data_manifest_sha256": "b02837724d857df5685684c3fff4aaa22fef7a3d03be4a9bf26163f7efe10a78",
+  "data_manifest_sha256": "849a3aa99343da605d6db7415594cfb545d8bfa39a51b034ea810d07e686f539",
   "rows": {
     "train": 22778,
     "calib": 2859,

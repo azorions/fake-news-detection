@@ -104,6 +104,9 @@ _OUTLETS = (
     r"|(?i:sputnik)(?: International| news)?|RT(?: International)?|21st Century Wire|21WIRE"
     r"|Getty Images|Daily Caller|TRUNEWS|Infowars|WND"
     r"|SiriusXM(?: Patriot(?: Channel)?(?: \d+)?)?|Alex Marlow"
+    # Breitbart prints its editor's first name in capitals ("Senior Editor MILO"): 71 of the 72 train
+    # rows with that spelling are Breitbart's. "Milo" in ordinary case is spread like the labels.
+    r"|MILO"
 )
 
 _ARTIFACT_PATTERNS: tuple[re.Pattern[str], ...] = (
@@ -200,11 +203,25 @@ def model_input(title: str | None, text: str) -> tuple[str, list[int]]:
     characters that come from the title or the separator.
     """
     body, mapping = remove_spans(text, find_artifact_spans(text))
-    clean_title = scrub_text(title).strip(" -|:\n") if title else ""
+    clean_title = _scrub_title(title)
     if not clean_title:
         return body, mapping
     prefix = clean_title + "\n\n"
     return prefix + body, [-1] * len(prefix) + mapping
+
+
+def _scrub_title(title: str | None) -> str:
+    """The scrubbed title, without the separator a removed outlet name leaves; ``""`` if none."""
+    return scrub_text(title).strip(" -|:\n") if title else ""
+
+
+def transformer_parts(title: str | None, text: str) -> tuple[str, str]:
+    """The scrubbed title (``""`` when there is none) and the scrubbed body, kept apart.
+
+    The transformer reads them as two segments. They are the two halves of ``model_input``: joined
+    by a blank line they give the same string, so every model family reads the same words.
+    """
+    return _scrub_title(title), scrub_text(text)
 
 
 # ---------------------------------------------------------------- hashing

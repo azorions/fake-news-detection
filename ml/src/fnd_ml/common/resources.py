@@ -1,11 +1,17 @@
-"""Memory check for long commands, so they stop with a clear message instead of being killed."""
+"""What long commands need from the machine: enough free memory, and that it stays awake."""
 
 from __future__ import annotations
 
+import sys
 import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Self
 
 import psutil
+
+_ES_CONTINUOUS = 0x80000000
+_ES_SYSTEM_REQUIRED = 0x00000001
 
 
 class InsufficientMemory(RuntimeError):
@@ -25,6 +31,26 @@ def require_free_ram(gb: float, what: str) -> None:
             f"{what} needs about {gb:.1f} GB of free memory, but only {available:.1f} GB is "
             "available. Close other programs and run it again, or pass --force to try anyway."
         )
+
+
+def _set_execution_state(flags: int) -> None:
+    if sys.platform == "win32":
+        import ctypes
+
+        ctypes.windll.kernel32.SetThreadExecutionState(flags)
+
+
+@contextmanager
+def stay_awake() -> Iterator[None]:
+    """Ask Windows not to go to sleep while a long command runs; does nothing elsewhere.
+
+    The request belongs to this process and ends with it. The display may still turn off.
+    """
+    _set_execution_state(_ES_CONTINUOUS | _ES_SYSTEM_REQUIRED)
+    try:
+        yield
+    finally:
+        _set_execution_state(_ES_CONTINUOUS)
 
 
 class PeakMemory:

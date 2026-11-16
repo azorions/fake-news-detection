@@ -1,0 +1,18 @@
+# Pilot: a short fine-tune that proves training, calibration and export end to end before the
+# long run. Also the model of the leave-one-dataset-out folds.
+model_name: microsoft/deberta-v3-small
+max_length: 256             # tokens per article: [CLS] title [SEP] body [SEP]
+max_title_tokens: 64
+head_share: 0.75            # the body keeps the first 75% and the last 25% of its room
+lr: 2.0e-5
+weight_decay: 0.01
+epochs: 2
+batch_size: 16
+grad_accum: 1               # optimizer step every batch: effective batch 16
+warmup_share: 0.10
+eval_every_steps: 500       # val macro-F1; the best step is kept in best/
+checkpoint_every_steps: 500
+patience: 3                 # evaluations without a better val macro-F1 before stopping
+balance: dataset_label      # both labels equally often inside each dataset
+amp: auto                   # mixed precision only if it is at least 15% faster and stays finite
+seed: 13
