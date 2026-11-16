@@ -15,6 +15,7 @@ import pytest
 from sklearn.metrics import f1_score
 from tokenizers import Tokenizer, models, normalizers, pre_tokenizers
 
+from fnd_ml.calibration.run import calibrate_run
 from fnd_ml.calibration.temperature import apply_temperature
 from fnd_ml.models import transformer
 from fnd_ml.models.transformer import (
@@ -319,3 +320,23 @@ def test_the_benchmark_times_full_precision_only_on_a_cpu(
     assert result["fp32"]["fits"]
     assert result["fp32"]["loss_finite"]
     assert result["fp32"]["s_per_step"] > 0
+
+
+def test_a_trained_run_is_calibrated_on_its_calib_split(
+    config: TrainConfig, data: tuple[Path, Path], tmp_path: Path
+) -> None:
+    processed, lock = data
+    run_dir = tmp_path / "run"
+    train(replace(config, epochs=1), processed, run_dir, lock_path=lock)
+
+    result = calibrate_run(run_dir, processed, lock_path=lock)
+
+    calibration = result["calibration"]
+    assert calibration["rows"] == len(_split("calib"))
+    assert 0.05 <= calibration["temperature"] <= 20.0
+    assert calibration["ece_after"] <= calibration["ece_before"] + 0.02
+    logits = np.load(run_dir / "calib_logits.npy")
+    np.testing.assert_allclose(logits, predict_logits(run_dir / "best", _split("calib")))
+    test = _split("test")
+    expected = apply_temperature(predict_logits(run_dir / "best", test), calibration["temperature"])
+    np.testing.assert_allclose(load_scorer(run_dir)(test), expected)

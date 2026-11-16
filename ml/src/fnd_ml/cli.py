@@ -327,3 +327,21 @@ def train_transformer_command(
     except (ManifestMismatch, RunFolderError) as error:
         raise _frozen_or_exit(error) from error
     typer.echo(json.dumps(summary, indent=2))
+
+
+@app.command("calibrate")
+def calibrate_command(
+    run: Annotated[Path, typer.Option(help="Run folder of `fnd train transformer`.")],
+    processed_dir: ProcessedOption = Path("data/processed"),
+    force: ForceOption = False,
+) -> None:
+    """Fit a fine-tuned run's temperature and verdict thresholds on the calib split."""
+    from fnd_ml.calibration.run import calibrate_run
+    from fnd_ml.data.build import ManifestMismatch
+
+    _check_memory(TRANSFORMER_RAM_GB, "Calibrating the transformer", force)
+    try:
+        result = calibrate_run(run, processed_dir)
+    except ManifestMismatch as error:
+        raise _frozen_or_exit(error) from error
+    typer.echo(json.dumps(result, indent=2))
