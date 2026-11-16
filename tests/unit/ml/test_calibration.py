@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 from fnd_ml.calibration.metrics import brier, expected_calibration_error
+from fnd_ml.calibration.temperature import apply_temperature, fit_temperature, sigmoid
 from fnd_ml.calibration.thresholds import pick_thresholds
 from fnd_ml.eval.metrics import classification_report
 
@@ -64,3 +65,53 @@ def test_classification_report_has_the_headline_metrics() -> None:
     assert report["macro_f1"] == pytest.approx(1.0)
     assert report["roc_auc"] == pytest.approx(1.0)
     assert set(report) >= {"pr_auc", "brier", "ece", "unreliable_share"}
+
+
+def _logits_and_labels(scale: float, n: int = 5000, seed: int = 0) -> tuple[np.ndarray, np.ndarray]:
+    """Labels drawn from ``sigmoid(z)``; the model reports ``scale * z`` as its logit."""
+    rng = np.random.default_rng(seed)
+    z = rng.normal(0.0, 2.0, n)
+    y = (rng.uniform(size=n) < 1.0 / (1.0 + np.exp(-z))).astype(int)
+    return scale * z, y
+
+
+def test_overconfident_logits_get_their_temperature_back() -> None:
+    logits, y = _logits_and_labels(3.0)
+
+    temperature = fit_temperature(logits, y)
+
+    assert temperature == pytest.approx(3.0, rel=0.10)
+    before = expected_calibration_error(y, apply_temperature(logits, 1.0))
+    after = expected_calibration_error(y, apply_temperature(logits, temperature))
+    assert after < before
+
+
+def test_calibrated_logits_keep_a_temperature_of_one() -> None:
+    logits, y = _logits_and_labels(1.0)
+
+    assert fit_temperature(logits, y) == pytest.approx(1.0, rel=0.10)
+
+
+def test_the_temperature_stays_inside_its_bounds() -> None:
+    separable = np.array([-1.0] * 50 + [1.0] * 50)
+    labels = np.array([0] * 50 + [1] * 50)
+
+    # Perfectly separated logits want T -> 0; labels unrelated to the logits want T -> infinity.
+    assert fit_temperature(separable, labels) == pytest.approx(0.05, rel=0.01)
+    assert fit_temperature(separable, np.tile([0, 1], 50)) == pytest.approx(20.0, rel=0.01)
+
+
+def test_apply_temperature_never_leaves_the_clipped_range() -> None:
+    p = apply_temperature(np.array([-1e6, -50.0, 0.0, 50.0, 1e6]), 0.05)
+
+    assert p.min() == pytest.approx(0.01)
+    assert p.max() == pytest.approx(0.99)
+    assert p[2] == pytest.approx(0.5)
+    assert np.all(np.diff(p) >= 0)
+
+
+def test_sigmoid_is_not_clipped_and_does_not_overflow() -> None:
+    with np.errstate(over="raise"):
+        p = sigmoid(np.array([-1e6, 0.0, 1e6]))
+
+    np.testing.assert_allclose(p, [0.0, 0.5, 1.0])
