@@ -1,0 +1,299 @@
+{
+  "model": "baseline",
+  "version": "v2-7fda82b8",
+  "config": {
+    "n_features": 1048576,
+    "max_tokens": 600,
+    "min_df": 3,
+    "C": 4.0,
+    "max_iter": 300,
+    "char_ngrams": false
+  },
+  "data_manifest_sha256": "849a3aa99343da605d6db7415594cfb545d8bfa39a51b034ea810d07e686f539",
+  "rows": {
+    "train": 64681,
+    "val": 9058,
+    "calib": 8359,
+    "test": 8704
+  },
+  "metrics": {
+    "val": {
+      "raw": {
+        "n": 9058,
+        "unreliable_share": 0.4181,
+        "macro_f1": 0.8579,
+        "roc_auc": 0.9424,
+        "pr_auc": 0.9247,
+        "brier": 0.0958,
+        "ece": 0.0267
+      },
+      "calibrated": {
+        "n": 9058,
+        "unreliable_share": 0.4181,
+        "macro_f1": 0.8567,
+        "roc_auc": 0.9417,
+        "pr_auc": 0.9171,
+        "brier": 0.0956,
+        "ece": 0.0141
+      }
+    },
+    "calib": {
+      "raw": {
+        "n": 8359,
+        "unreliable_share": 0.4323,
+        "macro_f1": 0.8681,
+        "roc_auc": 0.9486,
+        "pr_auc": 0.9376,
+        "brier": 0.0905,
+        "ece": 0.0308
+      },
+      "calibrated": {
+        "n": 8359,
+        "unreliable_share": 0.4323,
+        "macro_f1": 0.8709,
+        "roc_auc": 0.9495,
+        "pr_auc": 0.9332,
+        "brier": 0.0885,
+        "ece": 0.002
+      }
+    },
+    "test": {
+      "raw": {
+        "n": 8704,
+        "unreliable_share": 0.4236,
+        "macro_f1": 0.853,
+        "roc_auc": 0.9405,
+        "pr_auc": 0.9253,
+        "brier": 0.0979,
+        "ece": 0.0204
+      },
+      "calibrated": {
+        "n": 8704,
+        "unreliable_share": 0.4236,
+        "macro_f1": 0.8535,
+        "roc_auc": 0.9402,
+        "pr_auc": 0.9184,
+        "brier": 0.098,
+        "ece": 0.014
+      }
+    },
+    "test_by_dataset": {
+      "fakenewsnet": {
+        "n": 1521,
+        "unreliable_share": 0.3228,
+        "macro_f1": 0.7182,
+        "roc_auc": 0.8129,
+        "pr_auc": 0.6835,
+        "brier": 0.1593,
+        "ece": 0.0419
+      },
+      "liar": {
+        "n": 972,
+        "unreliable_share": 0.501,
+        "macro_f1": 0.5807,
+        "roc_auc": 0.6296,
+        "pr_auc": 0.6152,
+        "brier": 0.2579,
+        "ece": 0.1368
+      },
+      "welfake": {
+        "n": 6211,
+        "unreliable_share": 0.4362,
+        "macro_f1": 0.9209,
+        "roc_auc": 0.9773,
+        "pr_auc": 0.9665,
+        "brier": 0.058,
+        "ece": 0.0168
+      }
+    },
+    "test_by_length": {
+      "article": {
+        "n": 5178,
+        "unreliable_share": 0.4365,
+        "macro_f1": 0.9189,
+        "roc_auc": 0.9765,
+        "pr_auc": 0.9654,
+        "brier": 0.0595,
+        "ece": 0.0216
+      },
+      "headline": {
+        "n": 2736,
+        "unreliable_share": 0.4364,
+        "macro_f1": 0.6995,
+        "roc_auc": 0.7897,
+        "pr_auc": 0.7398,
+        "brier": 0.1892,
+        "ece": 0.0662
+      },
+      "short": {
+        "n": 790,
+        "unreliable_share": 0.2949,
+        "macro_f1": 0.9452,
+        "roc_auc": 0.9919,
+        "pr_auc": 0.9794,
+        "brier": 0.0349,
+        "ece": 0.0342
+      }
+    }
+  },
+  "thresholds": {
+    "t_low": 0.35,
+    "t_high": 0.65,
+    "met_targets": true,
+    "precision_target": 0.9,
+    "npv_target": 0.9
+  },
+  "top_features": {
+    "unreliable": [
+      "the us",
+      "video",
+      "breaking",
+      "celebrities react",
+      "despite report",
+      "hillary",
+      "le gorafi",
+      "gorafi",
+      "wow",
+      "un",
+      "anti",
+      "below",
+      "us",
+      "pattinson",
+      "via",
+      "rumor",
+      "kristen stewart",
+      "cops",
+      "caitlyn",
+      "illegals",
+      "mosul",
+      "obama",
+      "advisers have",
+      "debunked",
+      "react",
+      "tom cruise",
+      "wisconsin",
+      "begging",
+      "kanye",
+      "video the",
+      "massive",
+      "katie holmes",
+      "bf",
+      "chart of",
+      "snubbed",
+      "rumours",
+      "october",
+      "download",
+      "says president",
+      "however",
+      "lol",
+      "awesome",
+      "aleppo",
+      "weisz",
+      "doj",
+      "fbi",
+      "non",
+      "beyonce",
+      "brad",
+      "rihanna"
+    ],
+    "reliable": [
+      "president donald",
+      "is us",
+      "said on",
+      "music video",
+      "met gala",
+      "cardi",
+      "on friday",
+      "mr",
+      "said",
+      "ms",
+      "season",
+      "baby no",
+      "on thursday",
+      "on tuesday",
+      "on monday",
+      "awards",
+      "trailer",
+      "friday",
+      "on wednesday",
+      "bachelorette",
+      "said in",
+      "thursday",
+      "the arrangement",
+      "beauty",
+      "finale",
+      "wags",
+      "riverdale",
+      "shirtless",
+      "netflix",
+      "makeup",
+      "easter",
+      "he said",
+      "on sunday",
+      "hollywood medium",
+      "bachelor",
+      "saturday",
+      "pics",
+      "tribute to",
+      "pink",
+      "islamic state",
+      "teen mom",
+      "revenge body",
+      "tattoo",
+      "tuesday",
+      "mtv",
+      "says donald",
+      "tour",
+      "transcript as",
+      "recap",
+      "teases"
+    ]
+  },
+  "leak_probe": {
+    "flagged": [],
+    "unnamed_buckets": 0
+  },
+  "origin_probe": {
+    "accuracy": 0.9663,
+    "majority_baseline": 0.6755,
+    "macro_f1": 0.9369,
+    "rows": {
+      "train": 21519,
+      "val": 9058
+    },
+    "per_label": {
+      "0": {
+        "accuracy": 0.978,
+        "majority_baseline": 0.6532,
+        "macro_f1": 0.9486,
+        "rows": {
+          "train": 14049,
+          "val": 5271
+        }
+      },
+      "1": {
+        "accuracy": 0.9482,
+        "majority_baseline": 0.7066,
+        "macro_f1": 0.9055,
+        "rows": {
+          "train": 7470,
+          "val": 3787
+        }
+      }
+    }
+  },
+  "bands_on_test": {
+    "reliable": {
+      "share": 0.5218,
+      "unreliable_rate": 0.092
+    },
+    "potentially_misleading": {
+      "share": 0.1228,
+      "unreliable_rate": 0.4892
+    },
+    "high_risk": {
+      "share": 0.3554,
+      "unreliable_rate": 0.8878
+    }
+  }
+}

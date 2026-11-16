@@ -1,7 +1,7 @@
-# Satire headline scorer: v2-89b967c5
+# Satire headline scorer: v2-4a308b50
 
 TF-IDF (hashed word 1-2-grams of the first 64 words) + logistic regression, isotonic calibration, trained on headlines only.
-Data manifest sha256: `b02837724d857df5685684c3fff4aaa22fef7a3d03be4a9bf26163f7efe10a78`
+Data manifest sha256: `849a3aa99343da605d6db7415594cfb545d8bfa39a51b034ea810d07e686f539`
 
 ## What the score means
 
