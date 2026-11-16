@@ -34,6 +34,7 @@ from fnd_api.schemas import (
 
 log = get_logger("fnd_api.pipeline")
 
+SATIRE_TAG_SCORE = 0.80  # from this satire score on the result is tagged; the verdict stays
 SCAN_REF_PREFIX = "scanref:"  # scan id -> cache key of its result, so a deleted scan can be purged
 
 
@@ -105,8 +106,7 @@ async def run(
     Raises ``ApiError`` for input that cannot be analysed.
     """
     clock = _Clock()
-    clf = ctx.models.baseline
-    if clf is None:
+    if not ctx.models.ready:
         raise ApiError("internal", 503, "No model is loaded, so nothing can be analysed yet.")
 
     if req.url is not None:
@@ -161,11 +161,13 @@ async def run(
         data={"source": source.model_dump(mode="json")},
     )
 
-    with clock.stage("classifier"):
-        classifier = await stages.classify(clf, metadata.title, article.text)
+    with clock.stage("classifier") as outcome:
+        classifier, outcome["status"], outcome["detail"] = await stages.classify(
+            ctx.models, metadata.title, article.text, ctx.inference_limiter
+        )
     yield StageEvent(
         stage="classifier",
-        status=StageStatus.OK,
+        status=clock.reports[-1].status,
         data={"classifier": classifier.model_dump(mode="json")},
     )
 
@@ -177,25 +179,36 @@ async def run(
         data={"highlights": [span.model_dump(mode="json") for span in highlights]},
     )
 
-    with clock.stage("explanations"):
-        attributions = await stages.explain(clf, metadata.title, article.text)
+    with clock.stage("explanations") as outcome:
+        attributions = []
+        if ctx.models.baseline is not None:
+            attributions = await stages.explain(ctx.models.baseline, metadata.title, article.text)
+        else:
+            outcome["status"] = StageStatus.SKIPPED
+            outcome["detail"] = "word weights come from the baseline model, which is not loaded"
     yield StageEvent(
         stage="explanations",
-        status=StageStatus.OK,
+        status=clock.reports[-1].status,
         data={"attributions": [item.model_dump(mode="json") for item in attributions]},
     )
 
     with clock.stage("final_verdict"):
         risk = classifier.p_unreliable
-        t_low, t_high = clf.thresholds
+        t_low, t_high = ctx.models.thresholds(classifier.version)
         breakdown = [
             ScoreComponent(
                 name="classifier",
                 log_odds=scorer.logit(risk),
-                detail="Calibrated probability from the baseline text classifier.",
+                detail=f"Calibrated probability from the text classifier ({classifier.model}).",
             )
         ]
-        tags: list[Tag] = ["partial_text"] if ingested.partial else []
+        score = classifier.satire_score
+        satire = score is not None and score >= SATIRE_TAG_SCORE
+        tags: list[Tag] = []
+        if satire:
+            tags.append("satire")
+        if ingested.partial:
+            tags.append("partial_text")
         if ingested.thin:
             verdict = Verdict.UNVERIFIED
             breakdown.append(
@@ -220,6 +233,7 @@ async def run(
             signal_labels=[span.label for span in highlights],
             partial_text=ingested.partial,
             word_count=article.word_count,
+            satire=satire,
         )
     verdict_data = {
         "verdict": verdict.value,

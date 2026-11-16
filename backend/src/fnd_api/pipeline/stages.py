@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from urllib.parse import urlsplit
 
+import anyio
 import anyio.to_thread
 import tldextract
 
@@ -15,6 +16,8 @@ from fnd_api.ingest import IngestError
 from fnd_api.ingest.extractor import extract_article
 from fnd_api.ingest.fetcher import fetch_html
 from fnd_api.ingest.language import detect_language
+from fnd_api.logging import get_logger
+from fnd_api.models_registry import ModelRegistry
 from fnd_api.pipeline.context import PipelineContext
 from fnd_api.schemas import (
     ArticleInfo,
@@ -25,12 +28,15 @@ from fnd_api.schemas import (
     MetadataInfo,
     SourceInfo,
     Span,
+    StageStatus,
     TokenAttribution,
 )
 from fnd_api.signals.spans import finalize
 from fnd_ml.common.text import normalize_text
 from fnd_ml.explain import lexical
 from fnd_ml.inference.baseline_classifier import BaselineClassifier
+
+log = get_logger("fnd_api.pipeline")
 
 MIN_WORDS = 3  # pasted text shorter than this cannot be analysed
 THIN_PAGE_WORDS = 40  # a fetched page with fewer words is not judged
@@ -179,17 +185,65 @@ def source_info(site_url: str | None) -> SourceInfo:
     )
 
 
-async def classify(clf: BaselineClassifier, title: str | None, text: str) -> ClassifierResult:
-    output = await anyio.to_thread.run_sync(clf.predict, title, text)
-    return ClassifierResult(
+async def _satire_score(
+    models: ModelRegistry, title: str | None, text: str, limiter: anyio.CapacityLimiter
+) -> float | None:
+    """How much the headline reads like satire; ``None`` without the scorer or when it fails."""
+    if models.satire is None:
+        return None
+    try:
+        return await anyio.to_thread.run_sync(models.satire.score, title, text, limiter=limiter)
+    except Exception:  # the satire tag is an extra: its failure must not cost the verdict
+        log.error("satire_scorer_failed", version=models.satire.version, exc_info=True)
+        return None
+
+
+async def classify(
+    models: ModelRegistry, title: str | None, text: str, limiter: anyio.CapacityLimiter
+) -> tuple[ClassifierResult, StageStatus, str | None]:
+    """Score the text with the transformer, or with the baseline when the transformer cannot.
+
+    Returns the result, the stage status and its detail. The status is ``DEGRADED`` whenever the
+    baseline had to answer in the transformer's place.
+    """
+    satire_score = await _satire_score(models, title, text, limiter)
+    status, detail = StageStatus.OK, None
+    transformer, baseline = models.transformer, models.baseline
+    if transformer is None:
+        status, detail = StageStatus.DEGRADED, "transformer model not available; baseline used"
+    else:
+        try:
+            output = await anyio.to_thread.run_sync(
+                transformer.predict, title, text, limiter=limiter
+            )
+        except Exception:
+            log.error("transformer_failed", version=transformer.version, exc_info=True)
+            status, detail = StageStatus.DEGRADED, "transformer model failed; baseline used"
+        else:
+            result = ClassifierResult(
+                model=transformer.name,
+                version=output.version,
+                p_unreliable=output.p_unreliable,
+                p_unreliable_raw=output.p_raw,
+                calibration="temperature",
+                satire_score=satire_score,
+                truncated=output.truncated,
+            )
+            return result, status, detail
+
+    if baseline is None:
+        raise ApiError("internal", 503, "The model failed and no other model is loaded.")
+    output = await anyio.to_thread.run_sync(baseline.predict, title, text, limiter=limiter)
+    result = ClassifierResult(
         model="baseline",
         version=output.version,
         p_unreliable=output.p_unreliable,
         p_unreliable_raw=output.p_raw,
-        calibration="isotonic" if clf.model.calib_x_ is not None else "none",
-        satire_score=None,
+        calibration="isotonic" if baseline.model.calib_x_ is not None else "none",
+        satire_score=satire_score,
         truncated=output.truncated,
     )
+    return result, status, detail
 
 
 async def rhetoric_signals(ctx: PipelineContext, text: str) -> list[Span]:

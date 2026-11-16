@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import anyio
 import httpx
 
 from fnd_api.cache import Cache
@@ -23,3 +24,4 @@ class PipelineContext:
     rules: RuleEngine
     scans: ScanRepository
     resolver: Resolver
+    inference_limiter: anyio.CapacityLimiter  # how many model inferences run at once
