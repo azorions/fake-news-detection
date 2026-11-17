@@ -68,6 +68,10 @@ class RunFolderError(RuntimeError):
     """The run folder holds another run, or one that was started with other settings."""
 
 
+class CardTooSmall(RuntimeError):
+    """The precision a run would train in needs more memory than the GPU has of its own."""
+
+
 # ---------------------------------------------------------------- configuration
 
 
@@ -170,6 +174,39 @@ def choose_amp(fp32: Mapping[str, Any], amp: Mapping[str, Any] | None) -> bool:
     if not fp32["fits"] or fp32["s_per_step"] is None:
         return True
     return bool(amp["s_per_step"] <= AMP_MAX_TIME_RATIO * fp32["s_per_step"])
+
+
+def fits_card(peak_mb: float | None, free_mb: float | None) -> bool:
+    """Whether a run's peak GPU memory stayed inside what the card had free before it started.
+
+    On Windows the driver does not fail an allocation the card cannot hold: it moves memory into
+    system RAM, and every step then takes many times longer. So "it ran" does not mean "it fits".
+    """
+    return peak_mb is None or free_mb is None or peak_mb <= free_mb
+
+
+def chosen_fits(result: Mapping[str, Any]) -> bool:
+    """Whether the precision that a benchmark result selects is one that fitted the card."""
+    timing = result["amp" if result["use_amp"] else "fp32"]
+    return bool(timing["fits"])
+
+
+def read_precision(path: Path) -> bool:
+    """``use_amp`` of a run folder's ``precision.json``; ``CardTooSmall`` if that choice did not fit."""
+    result = json.loads(path.read_text(encoding="utf-8"))
+    if not chosen_fits(result):
+        peaks = ", ".join(
+            f"{name} {result[name]['peak_mem_mb']:,.0f} MB"
+            for name in ("fp32", "amp")
+            if result[name]
+        )
+        raise CardTooSmall(
+            f"Neither precision fits the card's own memory ({peaks}; see {path}). The driver "
+            "would move the rest into system RAM and every step would take many times longer. "
+            "Halve batch_size and double grad_accum (the effective batch stays the same), "
+            "delete the file and time it again with --benchmark."
+        )
+    return bool(result["use_amp"])
 
 
 # ---------------------------------------------------------------- articles to input ids
@@ -470,10 +507,12 @@ def _time_steps(
         "fits": True,
     }
     seconds: list[float] = []
+    free_mb: float | None = None
     try:
-        learner = _new_learner(config, 10 * steps, 0, device, use_amp)
         if cuda:
             torch.cuda.reset_peak_memory_stats()
+            free_mb = round(torch.cuda.mem_get_info()[0] / 2**20, 1)
+        learner = _new_learner(config, 10 * steps, 0, device, use_amp)
         for index in range(steps):
             rows = order[index * effective : (index + 1) * effective]
             if len(rows) == 0:
@@ -489,9 +528,13 @@ def _time_steps(
         result["fits"] = False
     if cuda:
         result["peak_mem_mb"] = round(torch.cuda.max_memory_allocated() / 2**20, 1)
+        result["peak_reserved_mb"] = round(torch.cuda.max_memory_reserved() / 2**20, 1)
+        result["card_free_mb"] = free_mb
     timed = seconds[BENCHMARK_WARMUP_STEPS:] or seconds
     if timed and result["fits"]:
         result["s_per_step"] = round(float(np.mean(timed)), 4)
+    # Judged after the timing, so a run that spilled out of the card still reports how slow it was.
+    result["fits"] = result["fits"] and fits_card(result.get("peak_reserved_mb"), free_mb)
     return result
 
 
@@ -560,7 +603,7 @@ def _use_amp(config: TrainConfig, run_dir: Path, pad_id: int, train: _Split) -> 
         rows = np.unique(np.linspace(0, len(train.tokens) - 1, num=wanted).astype(np.int64))
         result = _benchmark(config, pad_id, train.take(rows), steps)
         path.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
-    return bool(json.loads(path.read_text(encoding="utf-8"))["use_amp"])
+    return read_precision(path)
 
 
 # ---------------------------------------------------------------- run folder

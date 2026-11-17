@@ -17,13 +17,17 @@ from fnd_ml.common import resources
 from fnd_ml.data.build import MANIFEST_NAME, ManifestMismatch
 from fnd_ml.models import transformer
 from fnd_ml.models.transformer import (
+    CardTooSmall,
     InputSpec,
     RunFolderError,
     Tokens,
     TrainConfig,
     choose_amp,
+    chosen_fits,
     encode_articles,
     epoch_order,
+    fits_card,
+    read_precision,
     sampling_weights,
     train,
 )
@@ -145,7 +149,7 @@ def test_config_rejects_unknown_modes_and_settings() -> None:
     ("name", "expected"),
     [
         ("deberta_small", ("microsoft/deberta-v3-small", 256, 16, 1, 2, 500, 500)),
-        ("deberta_base", ("microsoft/deberta-v3-base", 512, 8, 2, 3, 1000, 500)),
+        ("deberta_base", ("microsoft/deberta-v3-base", 512, 4, 4, 3, 1000, 500)),
     ],
 )
 def test_the_shipped_configs_hold_the_planned_settings(
@@ -335,3 +339,64 @@ def test_the_command_stops_with_a_clear_message_when_memory_is_short(
     assert result.exit_code == 2
     assert "needs about 2.5 GB" in result.output
     assert not run_dir.exists()
+
+
+# ---------------------------------------------------------------- the card's own memory
+
+
+def _measured(*, fp32_fits: bool, amp_fits: bool, use_amp: bool) -> dict[str, object]:
+    """A benchmark result shaped like the one measured for deberta-v3-base at 8 x 512 tokens."""
+    return {
+        "device": "cuda",
+        "fp32": {"s_per_step": 16.2, "peak_mem_mb": 10806.3, "fits": fp32_fits},
+        "amp": {"s_per_step": 8.1, "peak_mem_mb": 8326.0, "fits": amp_fits},
+        "use_amp": use_amp,
+    }
+
+
+def test_a_run_that_needs_more_than_the_card_has_free_does_not_fit() -> None:
+    assert fits_card(7000.0, 7100.0)
+    assert not fits_card(8326.0, 7700.0)  # Windows spills into system memory instead of failing
+    assert fits_card(None, None)  # a CPU has no card to outgrow
+
+
+def test_the_chosen_precision_must_be_one_that_fits() -> None:
+    assert chosen_fits(_measured(fp32_fits=False, amp_fits=True, use_amp=True))
+    assert chosen_fits(_measured(fp32_fits=True, amp_fits=True, use_amp=False))
+    assert not chosen_fits(_measured(fp32_fits=False, amp_fits=False, use_amp=False))
+    assert chosen_fits({"device": "cpu", "fp32": {"fits": True}, "amp": None, "use_amp": False})
+
+
+def test_a_run_refuses_a_precision_that_did_not_fit_the_card(tmp_path: Path) -> None:
+    path = tmp_path / "precision.json"
+    path.write_text(
+        json.dumps(_measured(fp32_fits=False, amp_fits=False, use_amp=False)), encoding="utf-8"
+    )
+
+    with pytest.raises(CardTooSmall, match="grad_accum"):
+        read_precision(path)
+
+    path.write_text(
+        json.dumps(_measured(fp32_fits=False, amp_fits=True, use_amp=True)), encoding="utf-8"
+    )
+    assert read_precision(path) is True
+
+
+def test_the_benchmark_command_fails_when_nothing_fits_the_card(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(resources, "free_ram_gb", lambda: 64.0)
+    result = _measured(fp32_fits=False, amp_fits=False, use_amp=False)
+    monkeypatch.setattr(transformer, "benchmark_precision", lambda *args, **kwargs: result)
+    config = tmp_path / "base.yaml"
+    config.write_text("model_name: anything\n", encoding="utf-8")
+    run_dir = tmp_path / "run"
+
+    outcome = CliRunner().invoke(
+        app,
+        ["train", "transformer", "--config", str(config), "--run-dir", str(run_dir), "--benchmark"],
+    )
+
+    assert outcome.exit_code == 1, outcome.output
+    assert "grad_accum" in outcome.output
+    assert json.loads((tmp_path / "run" / "precision.json").read_text(encoding="utf-8")) == result

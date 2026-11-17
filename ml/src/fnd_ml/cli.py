@@ -309,9 +309,11 @@ def train_transformer_command(
     from fnd_ml.data.build import ManifestMismatch
     from fnd_ml.models.transformer import (
         PRECISION_NAME,
+        CardTooSmall,
         RunFolderError,
         TrainConfig,
         benchmark_precision,
+        read_precision,
         train,
     )
 
@@ -325,9 +327,14 @@ def train_transformer_command(
                 target.mkdir(parents=True, exist_ok=True)
                 (target / PRECISION_NAME).write_text(text + "\n", encoding="utf-8")
                 typer.echo(text)
+                try:
+                    read_precision(target / PRECISION_NAME)
+                except CardTooSmall as error:
+                    typer.echo(str(error))
+                    raise typer.Exit(code=1) from error
                 return
             summary = train(settings, processed_dir, target, resume=resume, max_steps=max_steps)
-    except (ManifestMismatch, RunFolderError) as error:
+    except (ManifestMismatch, RunFolderError, CardTooSmall) as error:
         raise _frozen_or_exit(error) from error
     typer.echo(json.dumps(summary, indent=2))
 
