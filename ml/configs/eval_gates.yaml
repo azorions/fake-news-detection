@@ -1,0 +1,30 @@
+# Quality gates of docs/design.md, section 4. `fnd eval` applies them and exits 1 when one fails.
+# They are sanity floors, not targets: nothing is tuned on the test split to pass them.
+
+# Sets no model has seen in any form. The transformer must not do worse than the baseline on
+# their mean macro-F1.
+external_sets: [constraint, buzzfeed_webis]
+
+split_hygiene:
+  max_shared_groups: 0
+  max_shared_near_duplicate_clusters: 0
+
+leak_probe:
+  max_flagged_features: 0 # source identifiers among the top 50 baseline features
+
+baseline_floor:
+  min_macro_f1: 0.80 # grouped in-distribution test
+
+transformer_vs_baseline:
+  min_gain_macro_f1: 0.03 # in distribution
+  min_external_mean_gain: 0.0
+
+calibration:
+  max_ece: 0.05 # 15 bins, in distribution; the Brier score must also drop against uncalibrated
+
+onnx_parity:
+  max_abs_probability_diff: 0.001 # fp32 against PyTorch, 500 val rows
+  max_int8_macro_f1_drop: 0.01 # otherwise fp32 ships
+
+latency:
+  max_p95_ms: 500 # one article at the full window, on the CPU

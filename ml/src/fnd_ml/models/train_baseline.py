@@ -32,7 +32,7 @@ from fnd_ml.data.leak_probe import (
     load_probe_sample,
     origin_probe,
 )
-from fnd_ml.eval.metrics import classification_report
+from fnd_ml.eval.metrics import classification_report, report_by_group
 from fnd_ml.eval.report import write_report
 from fnd_ml.models.baseline import BaselineConfig, BaselineModel
 
@@ -83,15 +83,6 @@ def _bands(y: np.ndarray, p: np.ndarray, thresholds: Thresholds) -> dict[str, di
     }
 
 
-def _by_group(frame: pd.DataFrame, p: np.ndarray, column: str) -> dict[str, dict[str, Any]]:
-    labels = frame["label"].to_numpy()
-    return {
-        str(value): classification_report(labels[mask], p[mask])
-        for value in sorted(frame[column].unique())
-        for mask in [(frame[column] == value).to_numpy()]
-    }
-
-
 def add_test_results(
     report: dict[str, Any],
     meta: pd.DataFrame,
@@ -103,8 +94,8 @@ def add_test_results(
     labels = meta["label"].to_numpy()
     report["rows"]["test"] = len(meta)
     report["metrics"]["test"] = split_metrics(labels, raw, calibrated)
-    report["metrics"]["test_by_dataset"] = _by_group(meta, calibrated, "dataset")
-    report["metrics"]["test_by_length"] = _by_group(meta, calibrated, "length_bucket")
+    report["metrics"]["test_by_dataset"] = report_by_group(meta, calibrated, "dataset")
+    report["metrics"]["test_by_length"] = report_by_group(meta, calibrated, "length_bucket")
     report["bands_on_test"] = _bands(labels, calibrated, thresholds)
 
 

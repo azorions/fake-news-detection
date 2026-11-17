@@ -31,6 +31,7 @@ TOPICS_RAM_GB = 3.0  # PyTorch, the embedding model and the corpus texts
 # Measured on the pilot: the training process held 2.0 GB at its peak (PyTorch with CUDA, the
 # model and the token ids of the train split).
 TRANSFORMER_RAM_GB = 2.5
+EVAL_RAM_GB = 3.0  # leave one dataset out trains the classic models again
 
 
 def _check_memory(gb: float, what: str, force: bool) -> None:
@@ -347,6 +348,57 @@ def calibrate_command(
     except ManifestMismatch as error:
         raise _frozen_or_exit(error) from error
     typer.echo(json.dumps(result, indent=2))
+
+
+@app.command("eval")
+def eval_command(
+    out: Annotated[
+        Path,
+        typer.Option(help="Report path without extension: <out>.md, <out>.json, figures/ beside."),
+    ] = Path("ml/reports/eval_v1"),
+    processed_dir: ProcessedOption = Path("data/processed"),
+    artifacts_dir: ArtifactsOption = Path("ml/artifacts"),
+    with_transformer_lodo: Annotated[
+        bool,
+        typer.Option(
+            "--with-transformer-lodo",
+            help="Also fine-tune a small transformer per leave-one-dataset-out fold (GPU, slow).",
+        ),
+    ] = False,
+    allow_retest: Annotated[
+        str | None,
+        typer.Option(help="Why a model version scores the test split again; goes in the report."),
+    ] = None,
+    threads: Annotated[int, typer.Option(help="CPU threads for the exported transformer.")] = 4,
+    force: ForceOption = False,
+) -> None:
+    """Compare the registered models on every protocol and apply the quality gates.
+
+    The report is written even when a gate fails; the command then exits with 1.
+    """
+    from fnd_ml.common import resources
+    from fnd_ml.data.build import ManifestMismatch
+    from fnd_ml.eval import run as eval_run
+    from fnd_ml.eval.gates import format_gates
+    from fnd_ml.eval.protocols import RetestError
+
+    _check_memory(EVAL_RAM_GB, "The evaluation", force)
+    try:
+        with resources.stay_awake():
+            _, gates = eval_run.run_eval(
+                out,
+                processed_dir,
+                artifacts_dir,
+                with_transformer_lodo=with_transformer_lodo,
+                allow_retest=allow_retest,
+                threads=threads,
+            )
+    except (ManifestMismatch, RetestError, eval_run.EvalError) as error:
+        raise _frozen_or_exit(error) from error
+    typer.echo(format_gates(gates))
+    typer.echo(f"report: {out.parent / (out.name + '.md')}")
+    if not all(gate.passed for gate in gates):
+        raise typer.Exit(code=1)
 
 
 @app.command("export")
