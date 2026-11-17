@@ -147,13 +147,15 @@ def render_markdown(report: dict[str, Any]) -> str:
 # ------------------------------------------------------------ the model comparison (`fnd eval`)
 
 _MODEL_TITLES = {"baseline": "Baseline", "xgb": "XGBoost", "transformer": "Transformer"}
-_SET_TITLES = {"test": "test split"}
+_SET_TITLES = {"test": "the test split"}
 
 
 def _cell(value: object) -> str:
     if value is None:
         return "-"
-    return f"{value:g}" if isinstance(value, float) else str(value)
+    if isinstance(value, float):
+        return f"{value:g}"
+    return f"{value:,}" if isinstance(value, int) and not isinstance(value, bool) else str(value)
 
 
 def _grid(
@@ -284,7 +286,7 @@ def _figures(figures: Mapping[str, Mapping[str, str]]) -> list[str]:
     for model, by_set in figures.items():
         for scored, path in by_set.items():
             where = _SET_TITLES.get(scored, scored)
-            lines += ["", f"![{_MODEL_TITLES.get(model, model)} on the {where}]({path})"]
+            lines += ["", f"![{_MODEL_TITLES.get(model, model)} on {where}]({path})"]
     return lines
 
 

@@ -285,3 +285,24 @@ def test_the_markdown_shows_diagrams_retest_reasons_and_notes() -> None:
     assert "cache lost" in markdown
     assert "a note for the reader" in markdown
     assert "ab" * 32 in markdown
+
+
+def test_the_markdown_groups_thousands_in_row_counts() -> None:
+    report = _report()
+    report["in_distribution"]["baseline"]["overall"] = _metrics(0.85, n=8704)
+    report["leave_one_dataset_out"]["baseline"]["alpha"]["train_rows"] = 48638
+
+    tables = _tables(render_eval_markdown(report, []))
+
+    assert any("| baseline | 8,704 |" in row for row in tables["In distribution"])
+    assert any("| 48,638 |" in row for row in tables["Leave one dataset out"])
+
+
+def test_a_diagram_is_captioned_with_its_model_and_set() -> None:
+    report = _report()
+    report["figures"] = {"xgb": {"test": "figures/a.png", "constraint": "figures/b.png"}}
+
+    markdown = render_eval_markdown(report, [])
+
+    assert "![XGBoost on the test split](figures/a.png)" in markdown
+    assert "![XGBoost on constraint](figures/b.png)" in markdown
