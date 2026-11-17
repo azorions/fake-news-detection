@@ -159,6 +159,24 @@ def test_eval_refuses_data_that_is_not_the_frozen_version(world: World) -> None:
     assert not (world.reports / "eval_v1.md").exists()
 
 
+def test_every_set_is_scored_before_the_folds_are_trained(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The artifacts are done, and can be released, before the long part of the run begins."""
+    cached_at_each_fold: list[int] = []
+    real = eval_run.leave_one_dataset_out
+
+    def spy(*args: Any, **options: Any) -> Any:
+        cached_at_each_fold.append(len(list(world.cache.glob("*.npz"))))
+        return real(*args, **options)
+
+    monkeypatch.setattr(eval_run, "leave_one_dataset_out", spy)
+
+    world.run()
+
+    assert cached_at_each_fold == [6, 6]  # two models on three sets, before each of two folds
+
+
 def test_without_a_transformer_the_classic_models_are_still_compared(world: World) -> None:
     shutil.rmtree(world.artifacts / "transformer")
 

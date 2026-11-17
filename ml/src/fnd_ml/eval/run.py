@@ -9,6 +9,7 @@ sake, reads them back, so the test split is scored once per model version.
 
 from __future__ import annotations
 
+import gc
 import hashlib
 import json
 from collections.abc import Callable
@@ -116,6 +117,10 @@ def load_models(artifacts_dir: Path, *, threads: int = DEFAULT_THREADS) -> list[
         if directory is not None:
             models.append(load(directory, registry[kind]["version"]))
     return models
+
+
+def _released(frame: pd.DataFrame) -> Pair:
+    raise RuntimeError("the artifacts are released once every set is scored; read the cache")
 
 
 class _Scores:
@@ -273,6 +278,14 @@ def run_eval(
                 "reason": next((reason for reason in reversed(reasons) if reason), None),
             }
         )
+
+    # Everything an artifact is needed for happens here. From now on its scores are read from
+    # the cache, and the served model is not held in memory while the folds below are trained.
+    for model in models:
+        for set_name in sets:
+            scores.get(model, set_name)
+    models = [replace(model, both=_released) for model in models]
+    gc.collect()
 
     calibrated, raw = scores.scorers(models, 1), scores.scorers(models, 0)
     outside = {set_name: frame for set_name, frame in sets.items() if set_name != TEST}
