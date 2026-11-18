@@ -1,0 +1,12 @@
+{
+  "version": "v1-tinyfix",
+  "kind": "transformer",
+  "base_model": "tiny-fixture",
+  "variant": "fp32",
+  "max_length": 512,
+  "max_title_tokens": 64,
+  "head_share": 0.75,
+  "cls_id": 2,
+  "sep_id": 3,
+  "pad_id": 0
+}

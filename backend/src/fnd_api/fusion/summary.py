@@ -39,6 +39,7 @@ def build(
     signal_labels: list[str],
     partial_text: bool,
     word_count: int,
+    satire: bool = False,
 ) -> str:
     if verdict == Verdict.UNVERIFIED:
         return (
@@ -47,6 +48,8 @@ def build(
         )
     sentences = [_OPENING[verdict].format(risk=f"{round(risk * 100)}%")]
     sentences.append(_signals_sentence(signal_labels))
+    if satire:
+        sentences.append("The headline reads like satire.")
     if partial_text:
         sentences.append("Only part of the article could be read.")
     sentences.append(f"Confidence is {confidence_level.value}.")

@@ -23,6 +23,16 @@ def free_ram_gb() -> float:
     return float(psutil.virtual_memory().available) / 2**30
 
 
+def peak_ram_mb() -> float:
+    """The most physical memory this process has held at one time, in MiB."""
+    if sys.platform == "win32":
+        return float(psutil.Process().memory_info().peak_wset) / 2**20
+    import resource
+
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    return peak / 2**20 if sys.platform == "darwin" else peak / 2**10  # bytes on macOS, else KiB
+
+
 def require_free_ram(gb: float, what: str) -> None:
     """Raise ``InsufficientMemory`` unless about ``gb`` GiB of memory is available."""
     available = free_ram_gb()

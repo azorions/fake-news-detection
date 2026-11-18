@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from functools import partial
 
+import anyio
 import anyio.to_thread
 import httpx
 from fastapi import FastAPI
@@ -22,6 +24,7 @@ from fnd_api.ratelimit import RateLimiter
 from fnd_api.signals.rules import RuleEngine
 
 USER_AGENT = f"fnd-api/{__version__}"
+INFERENCE_SLOTS = 2
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -31,9 +34,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        app.state.models = await anyio.to_thread.run_sync(
-            ModelRegistry.load, settings.artifacts_dir
+        load_models = partial(
+            ModelRegistry.load, settings.artifacts_dir, onnx_threads=settings.onnx_threads
         )
+        app.state.models = await anyio.to_thread.run_sync(load_models)
+        # Two at a time: each transformer inference already uses several CPU threads.
+        app.state.inference_limiter = anyio.CapacityLimiter(INFERENCE_SLOTS)
         if not app.state.models.ready:
             log.warning("no_model_artifact", artifacts_dir=str(settings.artifacts_dir))
         app.state.rules = await anyio.to_thread.run_sync(RuleEngine.load, settings.lexicon_dir)

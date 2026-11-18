@@ -77,3 +77,12 @@ def test_stay_awake_lets_go_when_the_command_fails(monkeypatch: pytest.MonkeyPat
 def test_stay_awake_works_on_this_machine() -> None:
     with resources.stay_awake():
         pass
+
+
+def test_peak_ram_is_at_least_what_the_process_holds_now() -> None:
+    import psutil
+
+    held_mb = psutil.Process().memory_info().rss / 2**20
+
+    assert resources.peak_ram_mb() >= 0.9 * held_mb
+    assert resources.peak_ram_mb() < 64 * 1024

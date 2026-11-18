@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     redis_url: str | None = None  # when set, the scan cache uses Redis instead of the disk cache
     artifacts_dir: Path = Path("ml/artifacts")
     lexicon_dir: Path = Path("data/lexicons")
+    onnx_threads: int = 4  # CPU threads one transformer inference may use
 
     # Limits
     rate_limit_analyze: str = "30/minute"

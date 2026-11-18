@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
+import pandas as pd
 from numpy.typing import ArrayLike
 from sklearn.metrics import average_precision_score, f1_score, roc_auc_score
 
@@ -24,4 +25,14 @@ def classification_report(y: ArrayLike, p: ArrayLike, threshold: float = 0.5) ->
         "pr_auc": round(float(average_precision_score(y_arr, p_arr)), 4) if both_classes else None,
         "brier": round(brier(y_arr, p_arr), 4),
         "ece": round(expected_calibration_error(y_arr, p_arr), 4),
+    }
+
+
+def report_by_group(frame: pd.DataFrame, p: ArrayLike, column: str) -> dict[str, dict[str, Any]]:
+    """``classification_report`` of the rows of each value of ``column`` (labels in ``label``)."""
+    labels, p_arr = frame["label"].to_numpy(), np.asarray(p, dtype=float)
+    return {
+        str(value): classification_report(labels[mask], p_arr[mask])
+        for value in sorted(frame[column].unique())
+        for mask in [(frame[column] == value).to_numpy()]
     }

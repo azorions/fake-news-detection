@@ -6,8 +6,8 @@ head_share: 0.75            # the body keeps the first 75% and the last 25% of i
 lr: 2.0e-5
 weight_decay: 0.01
 epochs: 3
-batch_size: 8               # what fits an 8 GB card at 512 tokens
-grad_accum: 2               # optimizer step every 2 batches: effective batch 16
+batch_size: 4               # 8 x 512 tokens needs 8.3-10.8 GB: more than an 8 GB card has
+grad_accum: 4               # optimizer step every 4 batches: effective batch 16
 warmup_share: 0.10
 eval_every_steps: 1000      # val macro-F1; the best step is kept in best/
 checkpoint_every_steps: 500

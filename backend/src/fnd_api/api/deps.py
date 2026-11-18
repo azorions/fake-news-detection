@@ -59,6 +59,7 @@ def get_pipeline_context(request: Request) -> PipelineContext:
         rules=state.rules,
         scans=get_scans(request),
         resolver=state.resolver,
+        inference_limiter=state.inference_limiter,
     )
 
 

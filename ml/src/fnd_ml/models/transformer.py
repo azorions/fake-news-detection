@@ -38,8 +38,9 @@ from numpy.typing import NDArray
 from sklearn.metrics import f1_score
 
 from fnd_ml.calibration.temperature import apply_temperature, fit_temperature
+from fnd_ml.common.resources import peak_ram_mb
 from fnd_ml.common.text import transformer_parts
-from fnd_ml.common.truncation import build_input
+from fnd_ml.common.truncation import InputSpec, pad_batch
 from fnd_ml.data.build import DEFAULT_LOCK, assert_frozen
 from fnd_ml.models.scorer import Fit, Scorer
 from fnd_ml.models.train_baseline import stratified_positions
@@ -65,6 +66,10 @@ DEFAULT_FIT_DIR = Path("ml/runs/fit")
 
 class RunFolderError(RuntimeError):
     """The run folder holds another run, or one that was started with other settings."""
+
+
+class CardTooSmall(RuntimeError):
+    """The precision a run would train in needs more memory than the GPU has of its own."""
 
 
 # ---------------------------------------------------------------- configuration
@@ -171,19 +176,40 @@ def choose_amp(fp32: Mapping[str, Any], amp: Mapping[str, Any] | None) -> bool:
     return bool(amp["s_per_step"] <= AMP_MAX_TIME_RATIO * fp32["s_per_step"])
 
 
+def fits_card(peak_mb: float | None, free_mb: float | None) -> bool:
+    """Whether a run's peak GPU memory stayed inside what the card had free before it started.
+
+    On Windows the driver does not fail an allocation the card cannot hold: it moves memory into
+    system RAM, and every step then takes many times longer. So "it ran" does not mean "it fits".
+    """
+    return peak_mb is None or free_mb is None or peak_mb <= free_mb
+
+
+def chosen_fits(result: Mapping[str, Any]) -> bool:
+    """Whether the precision that a benchmark result selects is one that fitted the card."""
+    timing = result["amp" if result["use_amp"] else "fp32"]
+    return bool(timing["fits"])
+
+
+def read_precision(path: Path) -> bool:
+    """``use_amp`` of a run folder's ``precision.json``; ``CardTooSmall`` if that choice did not fit."""
+    result = json.loads(path.read_text(encoding="utf-8"))
+    if not chosen_fits(result):
+        peaks = ", ".join(
+            f"{name} {result[name]['peak_mem_mb']:,.0f} MB"
+            for name in ("fp32", "amp")
+            if result[name]
+        )
+        raise CardTooSmall(
+            f"Neither precision fits the card's own memory ({peaks}; see {path}). The driver "
+            "would move the rest into system RAM and every step would take many times longer. "
+            "Halve batch_size and double grad_accum (the effective batch stays the same), "
+            "delete the file and time it again with --benchmark."
+        )
+    return bool(result["use_amp"])
+
+
 # ---------------------------------------------------------------- articles to input ids
-
-
-@dataclass(frozen=True)
-class InputSpec:
-    """How an article becomes input ids. Saved with the model, so serving builds the same input."""
-
-    max_length: int
-    max_title_tokens: int
-    head_share: float
-    cls_id: int
-    sep_id: int
-    pad_id: int
 
 
 @dataclass(frozen=True)
@@ -264,15 +290,7 @@ def encode_articles(
         titles = backend.encode_batch([title for title, _ in pending], add_special_tokens=False)
         bodies = backend.encode_batch([body for _, body in pending], add_special_tokens=False)
         for title, body in zip(titles, bodies, strict=True):
-            ids, was_cut = build_input(
-                title.ids,
-                body.ids,
-                cls_id=spec.cls_id,
-                sep_id=spec.sep_id,
-                max_length=spec.max_length,
-                max_title=spec.max_title_tokens,
-                head_share=spec.head_share,
-            )
+            ids, was_cut = spec.build(title.ids, body.ids)
             rows.append(np.asarray(ids, dtype=np.int32))
             cut.append(was_cut)
         pending.clear()
@@ -365,6 +383,9 @@ def _new_learner(
         num_labels=2,
         id2label={0: "reliable", 1: "unreliable"},
         label2id={"reliable": 0, "unreliable": 1},
+        # Asked for by name: the published weights are float16 on disk, and without this the
+        # model would be loaded, trained and saved in half precision.
+        dtype=torch.float32,
     ).to(device)
 
     no_decay = ("bias", "LayerNorm.weight")
@@ -388,13 +409,7 @@ def _batch(tokens: Tokens, rows: NDArray[np.int64], pad_id: int, device: str) ->
     """``input_ids`` and ``attention_mask`` of the rows, padded to the longest of them."""
     import torch
 
-    pieces = [tokens.row(int(row)) for row in rows]
-    width = max(len(piece) for piece in pieces)
-    input_ids = np.full((len(pieces), width), pad_id, dtype=np.int64)
-    mask = np.zeros((len(pieces), width), dtype=np.int64)
-    for index, piece in enumerate(pieces):
-        input_ids[index, : len(piece)] = piece
-        mask[index, : len(piece)] = 1
+    input_ids, mask = pad_batch([tokens.row(int(row)) for row in rows], pad_id)
     return torch.from_numpy(input_ids).to(device), torch.from_numpy(mask).to(device)
 
 
@@ -492,10 +507,12 @@ def _time_steps(
         "fits": True,
     }
     seconds: list[float] = []
+    free_mb: float | None = None
     try:
-        learner = _new_learner(config, 10 * steps, 0, device, use_amp)
         if cuda:
             torch.cuda.reset_peak_memory_stats()
+            free_mb = round(torch.cuda.mem_get_info()[0] / 2**20, 1)
+        learner = _new_learner(config, 10 * steps, 0, device, use_amp)
         for index in range(steps):
             rows = order[index * effective : (index + 1) * effective]
             if len(rows) == 0:
@@ -511,9 +528,13 @@ def _time_steps(
         result["fits"] = False
     if cuda:
         result["peak_mem_mb"] = round(torch.cuda.max_memory_allocated() / 2**20, 1)
+        result["peak_reserved_mb"] = round(torch.cuda.max_memory_reserved() / 2**20, 1)
+        result["card_free_mb"] = free_mb
     timed = seconds[BENCHMARK_WARMUP_STEPS:] or seconds
     if timed and result["fits"]:
         result["s_per_step"] = round(float(np.mean(timed)), 4)
+    # Judged after the timing, so a run that spilled out of the card still reports how slow it was.
+    result["fits"] = result["fits"] and fits_card(result.get("peak_reserved_mb"), free_mb)
     return result
 
 
@@ -532,7 +553,13 @@ def _benchmark(config: TrainConfig, pad_id: int, split: _Split, steps: int) -> d
     fp32 = timings["fp32"]
     assert fp32 is not None
     use_amp = choose_amp(fp32, timings["amp"])
-    return {"device": device, "steps": steps, **timings, "use_amp": use_amp}
+    return {
+        "device": device,
+        "steps": steps,
+        **timings,
+        "use_amp": use_amp,
+        "peak_ram_mb": round(peak_ram_mb()),
+    }
 
 
 def benchmark_precision(
@@ -576,7 +603,7 @@ def _use_amp(config: TrainConfig, run_dir: Path, pad_id: int, train: _Split) -> 
         rows = np.unique(np.linspace(0, len(train.tokens) - 1, num=wanted).astype(np.int64))
         result = _benchmark(config, pad_id, train.take(rows), steps)
         path.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
-    return bool(json.loads(path.read_text(encoding="utf-8"))["use_amp"])
+    return read_precision(path)
 
 
 # ---------------------------------------------------------------- run folder
@@ -812,6 +839,7 @@ def _fit(
         "train_seconds": round(progress.train_seconds, 1),
         "device": learner.device,
         "amp": use_amp,
+        "peak_ram_mb": round(peak_ram_mb()),
         "train_rows": n,
         "val_rows": len(val.tokens),
         "truncated_share": {
@@ -909,12 +937,14 @@ def predict_logits(
 
     ``model_dir`` is a ``best/`` folder: model, tokenizer and ``input_config.json``.
     """
+    import torch
     from transformers import AutoModelForSequenceClassification
 
     spec = InputSpec(**json.loads((model_dir / INPUT_CONFIG_NAME).read_text(encoding="utf-8")))
     tokens = encode_articles(_load_tokenizer(str(model_dir)), _frame_articles(frame), spec)
     target = _device(device)
-    model = AutoModelForSequenceClassification.from_pretrained(model_dir).to(target)
+    loaded = AutoModelForSequenceClassification.from_pretrained(model_dir, dtype=torch.float32)
+    model = loaded.to(target)
     return _margins(model, tokens, spec.pad_id, target, batch_size, use_amp=False)
 
 

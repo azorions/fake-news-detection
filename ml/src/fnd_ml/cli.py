@@ -28,7 +28,10 @@ BUILD_RAM_GB = 3.0  # the whole corpus is held in memory several times over whil
 TRAIN_RAM_GB = 3.0  # the TF-IDF matrix of the train split, plus the solver's working copies
 SATIRE_RAM_GB = 1.0  # headlines only: about 28,000 short texts
 TOPICS_RAM_GB = 3.0  # PyTorch, the embedding model and the corpus texts
-TRANSFORMER_RAM_GB = 4.0  # PyTorch with CUDA, the model and the token ids of the train split
+# Measured on the pilot: the training process held 2.0 GB at its peak (PyTorch with CUDA, the
+# model and the token ids of the train split).
+TRANSFORMER_RAM_GB = 2.5
+EVAL_RAM_GB = 3.0  # leave one dataset out trains the classic models again
 
 
 def _check_memory(gb: float, what: str, force: bool) -> None:
@@ -306,9 +309,11 @@ def train_transformer_command(
     from fnd_ml.data.build import ManifestMismatch
     from fnd_ml.models.transformer import (
         PRECISION_NAME,
+        CardTooSmall,
         RunFolderError,
         TrainConfig,
         benchmark_precision,
+        read_precision,
         train,
     )
 
@@ -322,9 +327,14 @@ def train_transformer_command(
                 target.mkdir(parents=True, exist_ok=True)
                 (target / PRECISION_NAME).write_text(text + "\n", encoding="utf-8")
                 typer.echo(text)
+                try:
+                    read_precision(target / PRECISION_NAME)
+                except CardTooSmall as error:
+                    typer.echo(str(error))
+                    raise typer.Exit(code=1) from error
                 return
             summary = train(settings, processed_dir, target, resume=resume, max_steps=max_steps)
-    except (ManifestMismatch, RunFolderError) as error:
+    except (ManifestMismatch, RunFolderError, CardTooSmall) as error:
         raise _frozen_or_exit(error) from error
     typer.echo(json.dumps(summary, indent=2))
 
@@ -345,3 +355,79 @@ def calibrate_command(
     except ManifestMismatch as error:
         raise _frozen_or_exit(error) from error
     typer.echo(json.dumps(result, indent=2))
+
+
+@app.command("eval")
+def eval_command(
+    out: Annotated[
+        Path,
+        typer.Option(help="Report path without extension: <out>.md, <out>.json, figures/ beside."),
+    ] = Path("ml/reports/eval_v1"),
+    processed_dir: ProcessedOption = Path("data/processed"),
+    artifacts_dir: ArtifactsOption = Path("ml/artifacts"),
+    with_transformer_lodo: Annotated[
+        bool,
+        typer.Option(
+            "--with-transformer-lodo",
+            help="Also fine-tune a small transformer per leave-one-dataset-out fold (GPU, slow).",
+        ),
+    ] = False,
+    allow_retest: Annotated[
+        str | None,
+        typer.Option(help="Why a model version scores the test split again; goes in the report."),
+    ] = None,
+    threads: Annotated[int, typer.Option(help="CPU threads for the exported transformer.")] = 4,
+    force: ForceOption = False,
+) -> None:
+    """Compare the registered models on every protocol and apply the quality gates.
+
+    The report is written even when a gate fails; the command then exits with 1.
+    """
+    from fnd_ml.common import resources
+    from fnd_ml.data.build import ManifestMismatch
+    from fnd_ml.eval import run as eval_run
+    from fnd_ml.eval.gates import format_gates
+    from fnd_ml.eval.protocols import RetestError
+
+    _check_memory(EVAL_RAM_GB, "The evaluation", force)
+    try:
+        with resources.stay_awake():
+            _, gates = eval_run.run_eval(
+                out,
+                processed_dir,
+                artifacts_dir,
+                with_transformer_lodo=with_transformer_lodo,
+                allow_retest=allow_retest,
+                threads=threads,
+            )
+    except (ManifestMismatch, RetestError, eval_run.EvalError) as error:
+        raise _frozen_or_exit(error) from error
+    typer.echo(format_gates(gates))
+    typer.echo(f"report: {out.parent / (out.name + '.md')}")
+    if not all(gate.passed for gate in gates):
+        raise typer.Exit(code=1)
+
+
+@app.command("export")
+def export_command(
+    run: Annotated[Path, typer.Option(help="Run folder, already calibrated.")],
+    processed_dir: ProcessedOption = Path("data/processed"),
+    artifacts_dir: ArtifactsOption = Path("ml/artifacts"),
+    val_rows: Annotated[
+        int, typer.Option(help="Val rows on which the two files are compared.")
+    ] = 2000,
+    threads: Annotated[int, typer.Option(help="CPU threads, as the API will use.")] = 4,
+    force: ForceOption = False,
+) -> None:
+    """Export a calibrated run to ONNX, pick fp32 or int8, and register the served artifact."""
+    from fnd_ml.data.build import ManifestMismatch
+    from fnd_ml.export.pipeline import ExportError, export_run
+
+    _check_memory(TRANSFORMER_RAM_GB, "Exporting the transformer", force)
+    try:
+        metadata = export_run(run, processed_dir, artifacts_dir, val_rows=val_rows, threads=threads)
+    except (ManifestMismatch, ExportError) as error:
+        raise _frozen_or_exit(error) from error
+    typer.echo(json.dumps(metadata, indent=2))
+    for exception in metadata["gate_exceptions"]:
+        typer.echo(f"gate exception: {exception}")
